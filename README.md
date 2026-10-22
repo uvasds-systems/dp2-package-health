@@ -41,7 +41,7 @@ Indicate your selection A, B, or C in the Canvas quiz form.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Submission | All code, README, and plots are committed by the deadline in a private repository created from this template (**Use this template** → **Create a new repository**, visibility Private), with instructional staff added as collaborators. | 1 |
+| Submission | All code, README, and plots are committed by the deadline in a private repository created from this template (**Use this template** → **Create a new repository**, visibility Private), with instructional staff (`nmagee`, `elaineliu05`, `Tcusick8`) added as collaborators. | 1 |
 | Single Prefect flow | One `@flow` orchestrates exactly six (6) `@task` functions in order; running the flow executes the whole pipeline, including `dbt build`. Students may include additional pages or classes that are incorporated into the flow. | 3 |
 | Execution | The flow runs to completion from a clean clone with only a GH token; experiences no unhandled exceptions. | 2 |
 | Secrets | The GitHub PAT is read from an environment variable or Prefect Secret block; no token appears anywhere in the repository or its history. | 1 |
@@ -270,9 +270,11 @@ Points earned in other sections may be reduced for any component a student canno
 - [Contributors](https://docs.github.com/en/rest/repos/repos?apiVersion=2026-03-10#list-repository-contributors)
 
 Other:
-- GitHub Pagination
-- GitHub Ratelimits
-- GitHub GraphQL
-- Prefect Documentation
-- DBT Documentation
+- [GitHub Pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api) | [Sample Code](https://github.com/uvasds-systems/ds3022/blob/main/04_apis/05_pagination.py)
+- [GitHub Ratelimits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api) | [Sample Code](https://github.com/uvasds-systems/ds3022/blob/main/04_apis/07_github_api_limits.py)
+- [GitHub GraphQL](https://docs.github.com/en/graphql/guides/forming-calls-with-graphql) | [Sample Code](https://github.com/uvasds-systems/ds3022/blob/main/04_apis/08_github_graphql_api.py)
+- [GitHub GraphQL Rate Limits](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api)
+- [Prefect Documentation](https://docs.prefect.io/v3/get-started)
+- [DBT Documentation](https://docs.getdbt.com/docs/introduction)
+- [dbt DuckDB Adapter Setup](https://docs.getdbt.com/docs/core/connect-data-platform/duckdb-setup)
 
