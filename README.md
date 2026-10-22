@@ -45,7 +45,7 @@ Do not fork this repository. Create your own copy from the template:
 2. Set **Owner** to your personal GitHub account and give the repository a name.
 3. Under visibility, select **Private**. GitHub may preselect **Public**; change it before continuing.
 4. Click **Create repository**.
-5. In your new repository, go to **Settings** → **Collaborators** → **Add people** and add `nmagee`, `elaineliu05`, and `Tcusick8`.
+5. In your new repository, go to **Settings** → **Collaborators** → **Add people** and add `nmagee`, `elaineliu05`, and `tcusick8`.
 6. Clone your new repository and do all of your work there.
 
 > **Your repository must be private.** If you created it as public, change it now: **Settings** → **General** → **Danger Zone** → **Change repository visibility** → **Private**.
@@ -77,7 +77,7 @@ GitHub API ──Task 1: Extract──▶ data/raw/*.json ──Task 2: Load─�
 
 Because the raw responses stay on disk, you can fix a bug in Task 2 or any `dbt` model and rerun it without spending API quota. Add `data/` to `.gitignore`; landed data files must never be committed (see *No cruft* above).
 
-## Task 1: Extract — 16 points
+## Task 1: Extract from GitHub — 16 points
 
 Pull every required endpoint for all five repositories, across every page, and write each response page to disk as a JSON file. Restrict to the analysis window wherever the endpoint supports it (`since`/`until` for commits, `since` for issues and comments). For endpoints without date filters, sort by `updated` descending and stop paginating once you pass the window start.
 
@@ -89,7 +89,7 @@ Example URL using `since` and `until`:
 
 | Endpoint | Path | Notes |
 | --- | --- | --- |
-| Repository | `GET /repos/{r}` | One call. Needed for Task 4 validation (e.g. `open_issues_count`). |
+| Repository | `GET /repos/{r}` | One call. Repository metadata (description, creation date, default branch). |
 | Community profile | `GET /repos/{r}/community/profile` | One call. CONTRIBUTING, CODE_OF_CONDUCT, etc. |
 | Commits | `GET /repos/{r}/commits?since=…&until=…` | |
 | Issues | `GET /repos/{r}/issues?state=all&since=…` | Also returns PRs. Separate them using the `pull_request` key. |
@@ -190,12 +190,12 @@ Suggested models (students may add more):
 
 ## Task 4: Testing and validation — 9 points
 
-This task reads the `dbt` marts, checks them against GitHub's own totals, and summarizes them before modeling; it fails the flow when the data is incomplete.
+This task reads the `dbt` marts, confirms that nothing was lost between stages, and summarizes the data before modeling. It fails the flow if a check fails.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Reconciliation checks | Mart counts are compared against independent API totals (for example, the repo object's open-issue count vs. open rows in `fct_issues`). Mismatches over a stated tolerance fail the task. | 3 |
-| Outlier detection | A stated method (IQR, z-score on log scale, or median absolute deviation) flags extreme values in time to close, PR size, and weekly commits. Flagged records are listed and the treatment (keep, cap, or exclude) is justified. | 3 |
+| Completeness checks | Record counts match from stage to stage for each repo (landed JSON → raw tables → staging models), and every repo has data in every month of the window. Any mismatch fails the task. | 3 |
+| Outlier detection | Scan time to close, PR size, and weekly commits for values far outside the typical range (for example, an issue open for years or a PR that changes 50,000 lines). State the cutoff you used, list the records it flags, and say whether you keep, cap, or drop them, and why. | 3 |
 | Descriptive statistics | Per repo: median and 90th percentile time to first response, time to close, and time to merge; commits per week; releases per year; active contributors per quarter. Printed to screen and log. | 3 |
 
 Medians and percentiles are required because these durations are heavily right-skewed; a mean alone earns no credit.
