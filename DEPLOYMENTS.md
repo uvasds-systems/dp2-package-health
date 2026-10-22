@@ -13,14 +13,14 @@ Here's how to set that up and enable it:
    1. Go to https://sds-prefect.pods.uvarc.io/v2/blocks
    2. Select "+ New storage block"
    3. Select "Secret" (a generic secret), then "Create"
-   4. Give the block a unique **name**, using your computing ID, such as "NEM2P_PAT". The value should be of the "password" type and contain the actual value of your PAT.
+   4. Give the block a unique **name**, using your computing ID, such as "nem2p-pat" (lowercase letters, numbers, and dashes only). The value should be of the "password" type and contain the actual value of your PAT.
    5. Click "Save".
 3. To use a Prefect Block within your flow, use this syntax:
 
     ```
     from prefect.blocks.system import Secret
 
-    my_secret = Secret.load("NEM2P_PAT")
+    my_secret = Secret.load("nem2p-pat")
 
     # Access the stored secret in a reusable object
     secret = my_secret.get()
@@ -34,7 +34,7 @@ See the [reference example](https://gist.github.com/nmagee/177f916afefbc7ae5bcfa
 if __name__ == "__main__":
     # runs midnight Eastern on the 20th of every month
     <flow_function_name>.from_source(
-        source=GIST_URL,
+        source=GIT_URL,
         entrypoint="main.py:<flow_function_name>",
     ).deploy(
         name="package-health",
@@ -50,6 +50,29 @@ if __name__ == "__main__":
 ```
 
 In the reference example a GitHub Gist repository was used, but any normal GitHub repo will work, using the `https://` prefix with the `.git` suffix.
+
+### Private repositories
+
+If your repo is private, the Prefect worker needs your PAT to clone it. Instead of passing `GIT_URL` as a plain string, wrap it in a `GitRepository` object and pass your Secret block as the credential:
+
+```
+from prefect.blocks.system import Secret
+from prefect.runner.storage import GitRepository
+
+if __name__ == "__main__":
+    <flow_function_name>.from_source(
+        source=GitRepository(
+            url=GIT_URL,
+            branch="main",
+            credentials={"access_token": Secret.load("nem2p-pat")},
+        ),
+        entrypoint="main.py:<flow_function_name>",
+    ).deploy(
+        ...  # same deploy() arguments as above
+    )
+```
+
+Pass the loaded `Secret` block itself, not `Secret.load(...).get()`. The deployment then stores only a reference to the block, and the worker fetches the token at run time, so the PAT is never written into the deployment's configuration.
 
 The entrypoint should be the filename+primary flow function name, like this:
 
