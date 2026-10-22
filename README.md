@@ -25,7 +25,7 @@ flowchart LR
 
 ## Package selection
 
-Students will choose one of three preassigned sets of packages. Fixed sets equalize the API workload, guarantee a spread of community sizes so the ranking has something to find, and let you grade results against a known reference run.
+Students will choose one of three preassigned sets of packages. Fixed sets equalize the API workload and guarantee a spread of community sizes so the ranking has something to find.
 
 Each set mixes two very large projects, two mid-size projects, and one smaller or maintainer-concentrated project.
 
@@ -33,7 +33,7 @@ Each set mixes two very large projects, two mid-size projects, and one smaller o
 | --- | --- | --- | --- |
 | A | `numpy/numpy`, `scikit-learn/scikit-learn` | `dask/dask`, `mwaskom/seaborn` | `vega/altair` |
 | B | `pandas-dev/pandas`, `matplotlib/matplotlib` | `statsmodels/statsmodels`, `dmlc/xgboost` | `networkx/networkx` |
-| C | `scipy/scipy`, `pola-rs/polars` | `plotly/plotly.py`, `microsoft/LightGBM` | `pydata/xarray` |
+| C | `scipy/scipy`, `pola-rs/polars` | `plotly/plotly.py`, `lightgbm-org/LightGBM` | `pydata/xarray` |
 
 Indicate your selection A, B, or C in the Canvas quiz form.
 
@@ -76,6 +76,8 @@ GitHub API ──Task 1: Extract──▶ data/raw/*.json ──Task 2: Load─�
 - **Task 2 only reads files and writes to DuckDB.** It never calls the API. Its job is to load the landed files into raw tables so that re-running it never creates duplicates.
 
 Because the raw responses stay on disk, you can fix a bug in Task 2 or any `dbt` model and rerun it without spending API quota. Add `data/` to `.gitignore`; landed data files must never be committed (see *No cruft* above).
+
+> **A note on design**: Any task can be run in parallel using Prefect's `.map` feature. And, since you are working on 5 repositories at once, your code can theoretically work on more than one repo at a time, fetching multiple sources of data at the same time for each.
 
 ## Task 1: Extract from GitHub — 16 points
 
@@ -272,6 +274,16 @@ Points earned in other sections may be reduced for any component a student canno
 | Extended process | 8 |  |
 | Oral interview | 10 |  |
 | **Total** | **100** |  |
+
+## Grading Notes
+
+As discussed in class I will NOT be grading on the following:
+
+- Speed/latency of your solution. Fast is great but unnecessary in this context.
+- Optimization. It should get the job done, even if there are more refined ways to structure it.
+- The final ranking itself. There is no correct order; grading is based on your metric definitions, weight justification, and sensitivity analysis.
+- Exact record counts. GitHub data shifts over time, so your counts will not match other students' exactly. Counts must only reconcile within your own pipeline (Task 4).
+- Library and style choices beyond the required tools. `requests` vs. `httpx`, pandas vs. polars, matplotlib vs. plotly, sync vs. async, and formatting are your call, as long as Prefect, DuckDB, and `dbt` are used as specified.
 
 ## Reference
 
