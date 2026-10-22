@@ -1,0 +1,7 @@
+package_health:
+  outputs:
+    dev:
+      type: duckdb
+      path: packages.duckdb
+      threads: 1
+  target: dev

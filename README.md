@@ -1,10 +1,10 @@
-# Data Project 2 // Open Source Health: GitHub Data Pipeline
+# Data Project 2 // Open Source Package Health: GitHub Data Pipeline
 
 Released: Oct 23, 2026
 
 ## Overview
 
-Students will build one Prefect flow that pulls GitHub activity for five data science packages and ranks them from healthiest to least healthy development community. The project is worth 100 points: 92 core and 8 extended.
+In this project students will build one Prefect flow that pulls GitHub activity for five data science packages and ranks them from healthiest to least healthy development community. The project is worth 100 points: 92 core and 8 extended.
 
 The flow must run end to end from a single entry point and contain six tasks: (1) ingest from the GitHub API, (2) land raw data, (3) transform and test with `dbt`, (4) reconcile and summarize, (5) model and rank, (6) plot. Each task is graded on its own, and each is designed to require real problem solving rather than a single library call.
 
@@ -18,43 +18,35 @@ Each set mixes two very large projects, two mid-size projects, and one smaller o
 
 | Set | Large (heavy pagination) | Mid-size | Smaller / concentrated |
 | --- | --- | --- | --- |
-| A | numpy/numpy, scikit-learn/scikit-learn | dask/dask, mwaskom/seaborn | vega/altair |
-| B | pandas-dev/pandas, matplotlib/matplotlib | statsmodels/statsmodels, dmlc/xgboost | networkx/networkx |
-| C | scipy/scipy, pola-rs/polars | plotly/plotly.py, microsoft/LightGBM | pydata/xarray |
+| A | `numpy/numpy`, `scikit-learn/scikit-learn` | `dask/dask`, `mwaskom/seaborn` | `vega/altair` |
+| B | `pandas-dev/pandas`, `matplotlib/matplotlib` | `statsmodels/statsmodels`, `dmlc/xgboost` | `networkx/networkx` |
+| C | `scipy/scipy`, `pola-rs/polars` | `plotly/plotly.py`, `microsoft/LightGBM` | `pydata/xarray` |
 
-A student may swap one package within the same size tier with instructor approval. Avoid monorepos such as apache/arrow and very large repos such as pytorch/pytorch; they distort comparisons and can exhaust a day of API quota.
+A student may swap one package within the same size tier with instructor approval. But avoid monorepos such as `apache/arrow` and very large repos such as `pytorch/pytorch`; they distort comparisons and can exhaust a day of API quota.
 
 ## General requirements — 14 points
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Submission | All code, README, and plots are committed by the deadline in a private fork of the source repository. | 1 |
-| Single Prefect flow | One `@flow` orchestrates exactly six `@task` functions in order; running one command executes the whole pipeline, including dbt build. | 3 |
-| Execution | The flow runs to completion from a clean clone with only a token set; no unhandled exceptions. | 2 |
-| Secrets | The GitHub token is read from an environment variable or Prefect Secret block; no token appears anywhere in the repository or its history. | 1 |
-| Retries and error handling | Tasks use Prefect retries with backoff where failure is transient; HTTP and parsing errors are caught and reported with context. | 2 |
-| Logging | Each task logs through the Prefect logger and to its own log file in the project directory (six logs; dbt's own log may serve for Task 3). | 2 |
-| Code quality | Docstrings on every function; type hints; files organized into folders (flows, tasks, dbt, plots). | 1 |
-| Reproducibility | Dependencies pinned (requirements.txt or pyproject); README explains setup, run command, and expected runtime. | 1 |
-| No cruft | The repository contains no database files, log files, raw API dumps, or caches. It contains no `venv` folder or virtualenv artifacts apart from a `pyproject.yaml` (uv) or `Pipfile*` (pipenv) | 2 |
+| Submission | All code, README, and plots are committed by the deadline in a private fork of the source repository with access given to instructional staff. | 1 |
+| Single Prefect flow | One `@flow` orchestrates exactly six (6) `@task` functions in order; running the flow executes the whole pipeline, including `dbt build`. Students may include additional pages or classes that are incorporated into the flow. | 3 |
+| Execution | The flow runs to completion from a clean clone with only a GH token; experiences no unhandled exceptions. | 2 |
+| Secrets | The GitHub PAT is read from an environment variable or Prefect Secret block; no token appears anywhere in the repository or its history. | 1 |
+| Retries and error handling | Tasks use Prefect retries with backoff where failure is transient; HTTP and parsing errors are caught and handled with context. | 2 |
+| Logging | Each task logs through the Prefect logger AND to its own log file in the project directory (dbt's own log should also be saved). | 2 |
+| Code quality | Functions should be well-formed with `return`, appropriate flow control, and not unnecessarily verbose; files organized into folders (flow, dbt, plots). | 1 |
+| Reproducibility | Dependencies pinned in `requirements.txt`, `Pipfile`, or `pyproject.yaml`); README explains setup, run command, and expected runtime. | 1 |
+| No cruft | The repository contains no database files, log files, raw API dumps, or caches. It contains no binaries, `venv` folder or virtualenv artifacts apart from dependency manifests (above) | 2 |
 
 ## Task 1: Ingestion — 20 points
 
 The task pulls every required dimension for all five repositories within the analysis window, across every page, while carefully working around GitHub's ratelimits.
 
-[**GitHub API Documentation**](https://docs.github.com/en/rest?apiVersion=2026-03-10)
-- [Commits](https://docs.github.com/en/rest/commits/commits?apiVersion=2026-03-10)
-- [Issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2026-03-10)
-- [Pull Requests (a special type of issue)](https://docs.github.com/en/rest/issues/issues?apiVersion=2026-03-10)
-- [Releases](https://docs.github.com/en/rest/releases/releases?apiVersion=2026-03-10)
-- [Contributors](https://docs.github.com/en/rest/repos/repos?apiVersion=2026-03-10#list-repository-contributors)
-- etc ...
-
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Required endpoints | Collects commits, issues, pull requests, releases, contributors, etc. for all five repos. Issues and PRs are separated (the issues endpoint also returns PRs). | 3 |
+| Required endpoints | Collects commits, issues, pull requests, releases, contributors, etc. for all five repos. Issues and PRs are separated (the issues endpoint also returns PRs). Other relevant API data from the repo can be added. | 3 |
 | Detail calls | Fetches per-item data for every merged PR in the window: reviews and first-response time. This multiplies call volume and is what pushes large repos past the hourly quota. | 3 |
-| Pagination | Follows the `Link` header (`rel="next"`) with `per_page=100` until exhausted; no hard-coded page counts. Record counts are logged per endpoint per repo. | 3 |
+| Pagination | Follows the `Link` header (`rel="next"`) with `per_page=100` until exhausted. Record counts are logged per endpoint per repo. | 3 |
 | Primary rate limit | Reads `X-RateLimit-Remaining` and `X-RateLimit-Reset` on every response and sleeps until reset before the budget hits zero. The 5,000 requests/hour authenticated limit is fixed and cannot be raised. | 3 |
 | Other HTTP errors | Handles 403/429 and other errors with standard Prefect `retries` and `retry_delay` flags in the appropriate task(s). | 3 |
 | Resumability | A run interrupted mid-ingestion resumes from a checkpoint (last page or `since` timestamp) instead of starting over. Demonstrated in the README with log excerpts. | 3 |
@@ -64,7 +56,7 @@ The task pulls every required dimension for all five repositories within the ana
 
 Data lands in a local DuckDB database as raw JSON responses; `dbt` builds everything downstream in Task 3.
 
-> NOTE: Setting up `dbt` (below) will assume the DB file is in a specific location; your other Prefect tasks should work with that.
+> NOTE: A `dbt` reference can be found [here](DBT-REFERENCE.md).
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
@@ -165,10 +157,26 @@ These items separate strong submissions from complete ones.
 | General requirements | 14 |  |
 | Task 1: Ingestion | 20 |  |
 | Task 2: Raw landing | 8 |  |
-| Task 3: dbt transformations and tests | 14 |  |
+| Task 3: `dbt` transformations and tests | 14 |  |
 | Task 4: Reconciliation, outliers, and statistics | 10 |  |
 | Task 5: Health modeling and ranking | 16 |  |
 | Task 6: Multi-dimensional plots | 10 |  |
 | Extended process | 8 |  |
 | **Total** | **100** |  |
+
+## Reference
+
+[**GitHub API Documentation**](https://docs.github.com/en/rest?apiVersion=2026-03-10)
+- [Commits](https://docs.github.com/en/rest/commits/commits?apiVersion=2026-03-10)
+- [Issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2026-03-10)
+- [Pull Requests (a special type of issue)](https://docs.github.com/en/rest/issues/issues?apiVersion=2026-03-10)
+- [Releases](https://docs.github.com/en/rest/releases/releases?apiVersion=2026-03-10)
+- [Contributors](https://docs.github.com/en/rest/repos/repos?apiVersion=2026-03-10#list-repository-contributors)
+
+Other:
+- GitHub Pagination
+- GitHub Ratelimits
+- GitHub GraphQL
+- Prefect Documentation
+- DBT Documentation
 

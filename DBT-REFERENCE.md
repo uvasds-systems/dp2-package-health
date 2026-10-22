@@ -5,9 +5,9 @@
     a. Create a new virtual environment for your project using `uv` or `pipenv`.
     b. Next, install `dbt-core`, `dbt-duckdb` and `prefect-dbt`.
 
-2. Initialize your `dbt` project by hand
+2. A `dbt` project has already been initiated.
 
-    Use `dbt init` within the root of your repo to create a new `dbt` project. It will prompt you for a project name, which should be `package_health` This will look something like this:
+    This normally produces a project structure like this:
 
     ```
     package_health/
@@ -32,7 +32,7 @@
 
     The other directories (analyses, macros, seeds, snapshots, tests) start out empty except for a .gitkeep file, so Git tracks them. .gitignore already excludes target/, dbt_packages/, and logs/.
 
-    `profiles.yml` would normally hold your database connection details and be kept outside of the repository. **In this case, you should create this file in the DBT folder you just created**. These settings are a good place to start:
+    `profiles.yml` would normally hold your database connection details and be kept outside of the repository. **In this case,  this file already exists in the repository you forked**. These settings are a good place to start:
 
     ```
     package_health:
@@ -40,20 +40,14 @@
         outputs:
             dev:
             type: duckdb
-            path: package_health.duckdb
+            path: packages.duckdb
             threads: 8
     ```
 
-    **You may delete** some folders unnecessary to this project:
-    - analyses
-    - macros
-    - seeds
-    - snapshots
-
-3. Loading the raw data from the GitHub API will occur as a separate @task within the Prefect flow, so `dbt` does not need to stage the initial data - it will find the data in `package_health.duckdb`.
+3. Loading the raw data from the GitHub API will occur as a separate @task within the Prefect flow, so `dbt` does not need to stage the initial data - it will find the data in `packages.duckdb`.
 4. Develop your mart(s) as necessary to build various dimensions around package health. This should include new, calculated columns, aggregate results, etc.
 5. Develop tests as necessary to verify you are getting values within an expected range, testing for outliers, `NULL` values, etc.
-6. Implement idempotency by dropping tables before creating or inserting into them.
+6. Implement idempotency by dropping tables before creating or inserting into them in a new run.
 7. Test your entire `dbt` build and test process by hand to validate success and meaningful results.
 8. When ready to execute within the full workflow, call `dbt build` within a Prefect `@task` in your `@flow`. This can be done with:
 
@@ -63,7 +57,7 @@
     from prefect_dbt import PrefectDbtRunner, PrefectDbtSettings
 
     # Resolve relative to this file
-    DBT_DIR = Path(__file__).parent / "package_health"
+    DBT_DIR = Path(__file__).parent
 
     @task(log_prints=True)
     def dbt_build():
@@ -75,3 +69,4 @@
         )
         return runner.invoke(["build"])
     ```
+

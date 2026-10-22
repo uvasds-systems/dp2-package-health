@@ -1,1 +1,6 @@
+storage*
 github*
+target/
+dbt_packages/
+logs/
+.env
