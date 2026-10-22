@@ -32,7 +32,7 @@
 
     The other directories (analyses, macros, seeds, snapshots, tests) start out empty except for a .gitkeep file, so Git tracks them. .gitignore already excludes target/, dbt_packages/, and logs/.
 
-    `profiles.yml` would normally hold your database connection details and be kept outside of the repository. **In this case,  this file already exists in the repository you forked**. These settings are a good place to start:
+    `profiles.yml` would normally hold your database connection details and be kept outside of the repository. **In this case,  this file already exists in the repository you created from the template**. These settings are a good place to start:
 
     ```
     package_health:

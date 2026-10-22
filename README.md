@@ -6,7 +6,7 @@ Released: Oct 23, 2026
 
 In this project students will build one Prefect flow that pulls GitHub activity for five data science packages and ranks them from healthiest to least healthy development community. The project is worth 100 points: 82 core, 8 extended, and 10 for an oral interview.
 
-The flow must run end to end from a single entry point and contain six tasks: (1) extract from the GitHub API to JSON files, (2) load into DuckDB, (3) transform and test with `dbt`, (4) reconcile and summarize, (5) model and rank, (6) plot. Each task is graded on its own, and each is designed to require real problem solving rather than a single library call.
+The flow must run end to end from a single entry point and contain six tasks: (1) extract from the GitHub API to JSON files, (2) load into DuckDB, (3) transform and test with `dbt`, (4) test and validate, (5) model and rank, (6) plot. Each task is graded on its own, and each is designed to require real problem solving rather than a single library call.
 
 Analysis window: Three years **2023-01-01 through 2025-12-31** (36 months). A fixed window keeps results reproducible and comparable across projects.
 
@@ -15,8 +15,12 @@ flowchart LR
     api[(GitHub API)] --> t1
     subgraph flow [Prefect flow]
         direction LR
-        t1["<b>1 · Extract</b><br/>JSON pages<br/>data/raw/"] --> t2["<b>2 · Load</b><br/>raw_* tables<br/>packages.duckdb"] --> t3["<b>3 · dbt build</b><br/>staging, facts,<br/>marts + tests"] --> t4["<b>4 · Reconcile</b><br/>checks, outliers,<br/>statistics"] --> t5["<b>5 · Model</b><br/>health scores<br/>+ ranking"] --> t6["<b>6 · Plot</b><br/>PNGs<br/>plots/"]
+        t1["<b>1 · Extract</b><br/>JSON pages<br/>data/raw/"] --> t2["<b>2 · Load</b><br/>raw_* tables<br/>packages.duckdb"] --> t3["<b>3 · dbt build</b><br/>staging, facts,<br/>marts + tests"] --> t4["<b>4 · Testing &<br/>validation</b><br/>checks, outliers,<br/>statistics"] --> t5["<b>5 · Model</b><br/>health scores<br/>+ ranking"] --> t6["<b>6 · Plot</b><br/>PNGs<br/>plots/"]
     end
+    classDef box fill:#ffffff,stroke:#6b7280,color:#111827
+    class api,t1,t2,t3,t4,t5,t6 box
+    style flow fill:#f3f4f6,stroke:#9ca3af,color:#111827
+    linkStyle default stroke:#4b5563
 ```
 
 ## Package selection
@@ -37,7 +41,7 @@ Indicate your selection A, B, or C in the Canvas quiz form.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Submission | All code, README, and plots are committed by the deadline in a private fork of the source repository with access given to instructional staff. | 1 |
+| Submission | All code, README, and plots are committed by the deadline in a private repository created from this template (**Use this template** → **Create a new repository**, visibility Private), with instructional staff added as collaborators. | 1 |
 | Single Prefect flow | One `@flow` orchestrates exactly six (6) `@task` functions in order; running the flow executes the whole pipeline, including `dbt build`. Students may include additional pages or classes that are incorporated into the flow. | 3 |
 | Execution | The flow runs to completion from a clean clone with only a GH token; experiences no unhandled exceptions. | 2 |
 | Secrets | The GitHub PAT is read from an environment variable or Prefect Secret block; no token appears anywhere in the repository or its history. | 1 |
@@ -72,7 +76,7 @@ Example URL using `since` and `until`:
 
 | Endpoint | Path | Notes |
 | --- | --- | --- |
-| Repository | `GET /repos/{r}` | One call. Needed for Task 4 reconciliation (e.g. `open_issues_count`). |
+| Repository | `GET /repos/{r}` | One call. Needed for Task 4 validation (e.g. `open_issues_count`). |
 | Community profile | `GET /repos/{r}/community/profile` | One call. CONTRIBUTING, CODE_OF_CONDUCT, etc. |
 | Commits | `GET /repos/{r}/commits?since=…&until=…` | |
 | Issues | `GET /repos/{r}/issues?state=all&since=…` | Also returns PRs. Separate them using the `pull_request` key. |
@@ -171,7 +175,7 @@ Suggested models (students may add more):
 | Singular tests | Custom SQL tests assert no issue closed before it opened, no PR merged before it was created, and every timestamp falls inside the window. Results print to screen and log. | 2 |
 | Documentation | `schema.yml` describes every mart and column; raw tables are declared as dbt sources. | 1 |
 
-## Task 4: Reconciliation, outliers, and statistics — 9 points
+## Task 4: Testing and validation — 9 points
 
 This task reads the `dbt` marts, checks them against GitHub's own totals, and summarizes them before modeling; it fails the flow when the data is incomplete.
 
@@ -249,7 +253,7 @@ Points earned in other sections may be reduced for any component a student canno
 | Task 1: Extract | 16 |  |
 | Task 2: Load to DuckDB | 9 |  |
 | Task 3: `dbt` transformations and tests | 12 |  |
-| Task 4: Reconciliation, outliers, and statistics | 9 |  |
+| Task 4: Testing and validation | 9 |  |
 | Task 5: Health modeling and ranking | 14 |  |
 | Task 6: Multi-dimensional plots | 9 |  |
 | Extended process | 8 |  |
