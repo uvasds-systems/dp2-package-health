@@ -4,7 +4,7 @@ Released: Oct 23, 2026
 
 ## Overview
 
-In this project students will build one Prefect flow that pulls GitHub activity for five data science packages and ranks them from healthiest to least healthy development community. The project is worth 100 points: 92 core and 8 extended.
+In this project students will build one Prefect flow that pulls GitHub activity for five data science packages and ranks them from healthiest to least healthy development community. The project is worth 100 points: 82 core, 8 extended, and 10 for an oral interview.
 
 The flow must run end to end from a single entry point and contain six tasks: (1) extract from the GitHub API to JSON files, (2) load into DuckDB, (3) transform and test with `dbt`, (4) reconcile and summarize, (5) model and rank, (6) plot. Each task is graded on its own, and each is designed to require real problem solving rather than a single library call.
 
@@ -24,7 +24,7 @@ Each set mixes two very large projects, two mid-size projects, and one smaller o
 
 Indicate your selection A, B, or C in the Canvas quiz form.
 
-## General requirements — 15 points
+## General requirements — 13 points
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
@@ -33,10 +33,10 @@ Indicate your selection A, B, or C in the Canvas quiz form.
 | Execution | The flow runs to completion from a clean clone with only a GH token; experiences no unhandled exceptions. | 2 |
 | Secrets | The GitHub PAT is read from an environment variable or Prefect Secret block; no token appears anywhere in the repository or its history. | 1 |
 | Retries and error handling | Tasks use Prefect retries with backoff where failure is transient; HTTP and parsing errors are caught and handled with context. | 2 |
-| Logging | Each task logs through the Prefect logger AND to its own log file in the project directory (dbt's own log should also be saved). | 2 |
+| Logging | Each task logs through the Prefect logger AND to its own log file in the project directory (dbt's own log should also be saved). | 1 |
 | Code quality | Functions should be well-formed with `return`, appropriate flow control, and not unnecessarily verbose; files organized into folders (flow, dbt, plots). | 1 |
 | Reproducibility | Dependencies pinned in `requirements.txt`, `Pipfile`, or `pyproject.yaml`); README explains setup, run command, and expected runtime. | 1 |
-| No cruft | The repository contains no database files, log files, raw API dumps, or caches. It contains no binaries, `venv` folder or virtualenv artifacts apart from dependency manifests (above) | 2 |
+| No cruft | The repository contains no database files, log files, raw API dumps, or caches. It contains no binaries, `venv` folder or virtualenv artifacts apart from dependency manifests (above) | 1 |
 
 ## How Tasks 1 and 2 fit together
 
@@ -51,7 +51,7 @@ GitHub API ──Task 1: Extract──▶ data/raw/*.json ──Task 2: Load─�
 
 Because the raw responses stay on disk, you can fix a bug in Task 2 or any `dbt` model and rerun it without spending API quota. Add `data/` to `.gitignore`; landed data files must never be committed (see *No cruft* above).
 
-## Task 1: Extract — 18 points
+## Task 1: Extract — 16 points
 
 Pull every required endpoint for all five repositories, across every page, and write each response page to disk as a JSON file. Restrict to the analysis window wherever the endpoint supports it (`since`/`until` for commits, `since` for issues and comments). For endpoints without date filters, sort by `updated` descending and stop paginating once you pass the window start.
 
@@ -101,8 +101,8 @@ Each file is a JSON object with the request metadata and the unmodified response
 | Detail calls | PR detail and reviews are fetched for every merged PR in the window. These calls multiply your request volume and are what push the large repos past the hourly limit. | 3 |
 | Pagination | Follows the `Link` header (`rel="next"`) with `per_page=100` until no next page remains. Record counts are logged per endpoint per repo. | 3 |
 | Primary rate limit | Reads `X-RateLimit-Remaining` and `X-RateLimit-Reset` on every response and sleeps until the reset time before the budget reaches zero. The 5,000 requests/hour limit cannot be raised. | 3 |
-| Other HTTP errors | Handles 403/429 (secondary rate limits; honor `Retry-After`) and 5xx errors using Prefect `retries` and `retry_delay_seconds` on the appropriate task(s). | 2 |
-| Landing files | Every response page is written in the format above, with exactly one file per page. | 2 |
+| Other HTTP errors | Handles 403/429 (secondary rate limits; honor `Retry-After`) and 5xx errors using Prefect `retries` and `retry_delay_seconds` on the appropriate task(s). | 1 |
+| Landing files | Every response page is written in the format above, with exactly one file per page. | 1 |
 | Resumability | If a run is interrupted, the next run resumes the unfinished `<run_id>` folder and skips pages already on disk instead of starting over. Show this in your README with log excerpts from an interrupted run and its resumed run. | 2 |
 
 ## Task 2: Load to DuckDB — 9 points
@@ -134,7 +134,7 @@ Leave the remaining fields inside `payload`. Your `dbt` staging models (Task 3) 
 | Idempotent loads | Loads upsert on `(repo, id)` (e.g. `INSERT OR REPLACE` or `MERGE`), never blind inserts. Running Task 2 twice on the same run folder produces identical row counts; show both counts in the log. | 3 |
 | Incremental loads | A second flow run requests only records updated since the `_load_state` watermark (detail calls only for new or updated merged PRs), and Task 2 upserts them into the existing tables. Log the request count for a full run and an incremental run. | 3 |
 
-## Task 3: `dbt` transformations and tests — 14 points
+## Task 3: `dbt` transformations and tests — 12 points
 
 A `dbt` project in the repository turns raw JSON into tested staging models and marts with precalculated measures. The Prefect flow runs `dbt build` and fails if any model or test fails. Little cleaning is needed; the work is in the derived measures.
 
@@ -154,27 +154,27 @@ Suggested models (students may add more):
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Staging models | One staging model per raw endpoint with typed columns, deduplication, and bot flagging; the bot rule is documented. | 3 |
+| Staging models | One staging model per raw endpoint with typed columns, deduplication, and bot flagging; the bot rule is documented. | 2 |
 | Fact and dimension marts | `fct_issues`, `fct_pull_requests`, `fct_releases`, and `dim_contributors` built with the precalculated durations and flags above. | 3 |
 | Aggregate marts | `mart_repo_monthly` and `mart_health_inputs` feed Tasks 4–6 directly; no downstream task recomputes durations in Python. | 2 |
 | Open items | Issues and PRs still open at window end are kept and marked open, never dropped or given a fake close date. The README explains how medians treat them. | 1 |
-| Generic tests | `unique` and `not_null` on every primary key, `relationships` from facts to repos and contributors, `accepted_values` on state columns. | 2 |
+| Generic tests | `unique` and `not_null` on every primary key, `relationships` from facts to repos and contributors, `accepted_values` on state columns. | 1 |
 | Singular tests | Custom SQL tests assert no issue closed before it opened, no PR merged before it was created, and every timestamp falls inside the window. Results print to screen and log. | 2 |
 | Documentation | `schema.yml` describes every mart and column; raw tables are declared as dbt sources. | 1 |
 
-## Task 4: Reconciliation, outliers, and statistics — 10 points
+## Task 4: Reconciliation, outliers, and statistics — 9 points
 
 This task reads the `dbt` marts, checks them against GitHub's own totals, and summarizes them before modeling; it fails the flow when the data is incomplete.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Reconciliation checks | Mart counts are compared against independent API totals (for example, the repo object's open-issue count vs. open rows in `fct_issues`). Mismatches over a stated tolerance fail the task. | 3 |
-| Outlier detection | A stated method (IQR, z-score on log scale, or median absolute deviation) flags extreme values in time to close, PR size, and weekly commits. Flagged records are listed and the treatment (keep, cap, or exclude) is justified. | 4 |
+| Outlier detection | A stated method (IQR, z-score on log scale, or median absolute deviation) flags extreme values in time to close, PR size, and weekly commits. Flagged records are listed and the treatment (keep, cap, or exclude) is justified. | 3 |
 | Descriptive statistics | Per repo: median and 90th percentile time to first response, time to close, and time to merge; commits per week; releases per year; active contributors per quarter. Printed to screen and log. | 3 |
 
 Medians and percentiles are required because these durations are heavily right-skewed; a mean alone earns no credit.
 
-## Task 5: Health modeling and ranking — 16 points
+## Task 5: Health modeling and ranking — 14 points
 
 Students build a composite health score from at least six metrics spanning at least four dimensions, then rank the five repos and show the ranking holds up.
 
@@ -196,43 +196,55 @@ Stars and forks measure popularity, not health, and do not count toward the six 
 | Size normalization | Metrics are normalized so large projects do not win by volume alone (per-contributor rates, ratios, or ranks rather than raw counts). | 3 |
 | Scoring model | Metrics are standardized (z-score, min-max, or rank) and combined with weights the student justifies in writing. | 3 |
 | Trend component | At least one metric captures direction of change (for example, a regression slope over 36 months), not only a level. | 2 |
-| Sensitivity analysis | The ranking is recomputed under at least two alternative weightings, or one metric left out at a time. The README states whether the top and bottom positions hold. | 3 |
-| Ranking output | A ranked table with score, rank, and per-dimension subscores prints to screen and log and is written back to the database. | 2 |
+| Sensitivity analysis | The ranking is recomputed under at least two alternative weightings, or one metric left out at a time. The README states whether the top and bottom positions hold. | 2 |
+| Ranking output | A ranked table with score, rank, and per-dimension subscores prints to screen and log and is written back to the database. | 1 |
 
-## Task 6: Multi-dimensional plots — 10 points
+## Task 6: Multi-dimensional plots — 9 points
 
 The flow saves at least three plots as PNG to a `plots/` directory, committed to the repository. Each plot shows three or more dimensions at once.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Dimension profile | A radar chart or small-multiples bar chart showing all five repos across every scored dimension. | 3 |
+| Dimension profile | A radar chart or small-multiples bar chart showing all five repos across every scored dimension. | 2 |
 | Trends over time | Monthly small multiples from `mart_repo_monthly` (one panel per metric, one line per repo) covering the full 36-month window. | 3 |
 | Relationship plot | A scatter or bubble chart encoding at least three variables (for example, x = time to first response, y = close ratio, size = active contributors, color = repo). | 2 |
 | Presentation | Titles, labeled axes with units, a consistent color per repo across all plots, and a one-paragraph interpretation of each plot in the README. | 2 |
 
-## Extended process — 9 points
+## Extended process — 8 points
 
 These items separate strong submissions from complete ones.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | GraphQL ingestion | Rewrite PR and review ingestion against the [**GitHub GraphQL API**](https://docs.github.com/en/graphql) with cursor pagination, tracking the 5,000-point hourly budget from the `rateLimit` field. Log request counts and runtime for REST vs. GraphQL. | 3 |
-| Concurrent fetching | Use Prefect task mapping or async requests to fetch repos in parallel while a shared limiter keeps total usage under the quota. | 3 |
+| Concurrent fetching | Use Prefect task mapping or async requests to fetch repos in parallel while a shared limiter keeps total usage under the quota. | 2 |
 | Scheduled deployment | A Prefect deployment with a weekly schedule runs the incremental flow; the README shows the deployment command and one scheduled run's log. [See note](DEPLOYMENTS.md). | 2 |
 | API Odometer | Implement an overall tracking mechanism that tracks the total number of API requests per flow run. | 1 |
+
+## Oral interview — 10 points
+
+After submission, each student has a 5-minute interview about their own repository. Expect questions about specific parts of your code and the decisions behind them. You are responsible for understanding everything you submit, including any code produced with AI tools.
+
+| Criterion | Full credit requires | Pts |
+| --- | --- | --- |
+| Code walkthrough | Explains how a piece of code chosen by the interviewer works. | 5 |
+| Design decisions | Justifies a choice they made (for example, metric weights or outlier treatment). | 5 |
+
+Points earned in other sections may be reduced for any component a student cannot explain.
 
 ## Point summary
 
 | Section | Points | Score |
 | --- | --- | --- |
-| General requirements | 15 |  |
-| Task 1: Extract | 18 |  |
+| General requirements | 13 |  |
+| Task 1: Extract | 16 |  |
 | Task 2: Load to DuckDB | 9 |  |
-| Task 3: `dbt` transformations and tests | 14 |  |
-| Task 4: Reconciliation, outliers, and statistics | 10 |  |
-| Task 5: Health modeling and ranking | 16 |  |
-| Task 6: Multi-dimensional plots | 10 |  |
+| Task 3: `dbt` transformations and tests | 12 |  |
+| Task 4: Reconciliation, outliers, and statistics | 9 |  |
+| Task 5: Health modeling and ranking | 14 |  |
+| Task 6: Multi-dimensional plots | 9 |  |
 | Extended process | 8 |  |
+| Oral interview | 10 |  |
 | **Total** | **100** |  |
 
 ## Reference
