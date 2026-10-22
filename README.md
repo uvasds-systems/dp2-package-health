@@ -263,7 +263,7 @@ Points earned in other sections may be reduced for any component a student canno
 | Section | Points | Score |
 | --- | --- | --- |
 | General requirements | 13 |  |
-| Task 1: Extract | 16 |  |
+| Task 1: Extract from GitHub | 16 |  |
 | Task 2: Load to DuckDB | 9 |  |
 | Task 3: `dbt` transformations and tests | 12 |  |
 | Task 4: Testing and validation | 9 |  |
