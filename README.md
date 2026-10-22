@@ -37,11 +37,24 @@ Each set mixes two very large projects, two mid-size projects, and one smaller o
 
 Indicate your selection A, B, or C in the Canvas quiz form.
 
+## Create your repository
+
+Do not fork this repository. Create your own copy from the template:
+
+1. At the top of this repository's page, click **Use this template** → **Create a new repository**.
+2. Set **Owner** to your personal GitHub account and give the repository a name.
+3. Under visibility, select **Private**. GitHub may preselect **Public**; change it before continuing.
+4. Click **Create repository**.
+5. In your new repository, go to **Settings** → **Collaborators** → **Add people** and add `nmagee`, `elaineliu05`, and `Tcusick8`.
+6. Clone your new repository and do all of your work there.
+
+> **Your repository must be private.** If you created it as public, change it now: **Settings** → **General** → **Danger Zone** → **Change repository visibility** → **Private**.
+
 ## General requirements — 13 points
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Submission | All code, README, and plots are committed by the deadline in a private repository created from this template (**Use this template** → **Create a new repository**, visibility Private), with instructional staff (`nmagee`, `elaineliu05`, `Tcusick8`) added as collaborators. | 1 |
+| Submission | All code, README, and plots are committed by the deadline in a **private** repository created from this template, with instructional staff added as collaborators (see [Create your repository](#create-your-repository)). | 1 |
 | Single Prefect flow | One `@flow` orchestrates exactly six (6) `@task` functions in order; running the flow executes the whole pipeline, including `dbt build`. Students may include additional pages or classes that are incorporated into the flow. | 3 |
 | Execution | The flow runs to completion from a clean clone with only a GH token; experiences no unhandled exceptions. | 2 |
 | Secrets | The GitHub PAT is read from an environment variable or Prefect Secret block; no token appears anywhere in the repository or its history. | 1 |
