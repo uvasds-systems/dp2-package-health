@@ -164,7 +164,7 @@ Leave the remaining fields inside `payload`. Your `dbt` staging models (Task 3) 
 
 A `dbt` project in the repository turns raw JSON into tested staging models and marts with precalculated measures. The Prefect flow runs `dbt build` and fails if any model or test fails. Little cleaning is needed; the work is in the derived measures.
 
-A simple `dbt` Reference is available [here](DBT-REFERENCE.md).
+A `dbt` Reference is available [here](DBT-REFERENCE.md).
 
 Suggested models (students may add more):
 

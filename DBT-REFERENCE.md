@@ -3,14 +3,15 @@
 1. Install and import
 
     a. Create a new virtual environment for your project using `uv` or `pipenv`.
+    
     b. Next, install `dbt-core`, `dbt-duckdb` and `prefect-dbt`.
 
-2. A `dbt` project has already been initiated.
+2. A `dbt` project has already been initiated in this repository.
 
     This normally produces a project structure like this:
 
     ```
-    package_health/
+    <REPO-ROOT-DIR>/
     ├── README.md
     ├── .gitignore
     ├── dbt_project.yml
@@ -30,9 +31,7 @@
 
     `models/example/` holds two sample models and a schema.yml. The second model selects from the first using `ref()`, and the schema.yml adds descriptions and a couple of generic tests (unique, not_null). Most people delete this folder once they start real work.
 
-    The other directories (analyses, macros, seeds, snapshots, tests) start out empty except for a .gitkeep file, so Git tracks them. .gitignore already excludes target/, dbt_packages/, and logs/.
-
-    `profiles.yml` would normally hold your database connection details and be kept outside of the repository. **In this case,  this file already exists in the repository you created from the template**. These settings are a good place to start:
+    `profiles.yml` would normally hold sensitive database connection details and be kept outside of the repository in `~/.dbt/profiles.yml`. **In this case, this file can live directly in the repository**. These settings are a good place to start:
 
     ```
     package_health:
@@ -48,8 +47,8 @@
 4. Develop your mart(s) as necessary to build various dimensions around package health. This should include new, calculated columns, aggregate results, etc.
 5. Develop tests as necessary to verify you are getting values within an expected range, testing for outliers, `NULL` values, etc.
 6. Implement idempotency by dropping tables before creating or inserting into them in a new run.
-7. Test your entire `dbt` build and test process by hand to validate success and meaningful results.
-8. When ready to execute within the full workflow, call `dbt build` within a Prefect `@task` in your `@flow`. This can be done with:
+7. Test your entire `dbt` build and test process by hand to validate success and meaningful results to be sure that task is ready to run as part of the larger workflow.
+8. When ready to execute within the full workflow, call `dbt build` within a Prefect `@task` in your `@flow`. This can be done using the `PrefectDbtRunner`:
 
     ```
     from pathlib import Path
