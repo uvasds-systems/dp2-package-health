@@ -194,7 +194,7 @@ This task reads the `dbt` marts, confirms that nothing was lost between stages, 
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Completeness checks | Record counts match from stage to stage for each repo (landed JSON → raw tables → staging models), and every repo has data in every month of the window. Any mismatch fails the task. | 3 |
+| Completeness checks | For each repo and endpoint, the number of distinct records matches from stage to stage (landed JSON → raw tables → staging models), counting duplicates only once. Every repo has commits in every month of the window. Any mismatch fails the task. | 3 |
 | Outlier detection | Scan time to close, PR size, and weekly commits for values far outside the typical range (for example, an issue open for years or a PR that changes 50,000 lines). State the cutoff you used, list the records it flags, and say whether you keep, cap, or drop them, and why. | 3 |
 | Descriptive statistics | Per repo: median and 90th percentile time to first response, time to close, and time to merge; commits per week; releases per year; active contributors per quarter. Printed to screen and log. | 3 |
 
@@ -231,7 +231,7 @@ The flow saves at least three plots as PNG to a `plots/` directory, committed to
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Dimension profile | A radar chart or small-multiples bar chart showing all five repos across every scored dimension. | 2 |
+| Dimension profile | A radar chart or small-multiples bar chart showing all five repos across every scored dimension. The plot also shows your final ranking, with repos ordered from healthiest to least healthy (for example, in the legend or panel order, labeled with rank and score). | 2 |
 | Trends over time | Monthly small multiples from `mart_repo_monthly` (one panel per metric, one line per repo) covering the full 36-month window. | 3 |
 | Relationship plot | A scatter or bubble chart encoding at least three variables (for example, x = time to first response, y = close ratio, size = active contributors, color = repo). | 2 |
 | Presentation | Titles, labeled axes with units, a consistent color per repo across all plots, and a one-paragraph interpretation of each plot in the README. | 2 |
