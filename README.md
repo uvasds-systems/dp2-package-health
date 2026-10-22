@@ -10,6 +10,15 @@ The flow must run end to end from a single entry point and contain six tasks: (1
 
 Analysis window: Three years **2023-01-01 through 2025-12-31** (36 months). A fixed window keeps results reproducible and comparable across projects.
 
+```mermaid
+flowchart LR
+    api[(GitHub API)] --> t1
+    subgraph flow [Prefect flow]
+        direction LR
+        t1["<b>1 · Extract</b><br/>JSON pages<br/>data/raw/"] --> t2["<b>2 · Load</b><br/>raw_* tables<br/>packages.duckdb"] --> t3["<b>3 · dbt build</b><br/>staging, facts,<br/>marts + tests"] --> t4["<b>4 · Reconcile</b><br/>checks, outliers,<br/>statistics"] --> t5["<b>5 · Model</b><br/>health scores<br/>+ ranking"] --> t6["<b>6 · Plot</b><br/>PNGs<br/>plots/"]
+    end
+```
+
 ## Package selection
 
 Students will choose one of three preassigned sets of packages. Fixed sets equalize the API workload, guarantee a spread of community sizes so the ranking has something to find, and let you grade results against a known reference run.
