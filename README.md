@@ -79,6 +79,8 @@ Because the raw responses stay on disk, you can fix a bug in Task 2 or any `dbt`
 
 ## Task 1: Extract from GitHub — 16 points
 
+> **Build your flow** in the `main.py` module. All flow and logic should be there, unless you incorporate other modules via import.
+
 Pull every required endpoint for all five repositories, across every page, and write each response page to disk as a JSON file. Restrict to the analysis window wherever the endpoint supports it (`since`/`until` for commits, `since` for issues and comments). For endpoints without date filters, sort by `updated` descending and stop paginating once you pass the window start.
 
 Example URL using `since` and `until`:
@@ -150,9 +152,7 @@ Natural keys: commits → `sha`; issues and PRs → `number`; comments, reviews,
 
 Leave the remaining fields inside `payload`. Your `dbt` staging models (Task 3) extract the fields you need, so if you later find you need another field you only change a model, not re-fetch from the API.
 
-**Load state.** Keep a `_load_state` table with one row per repo and endpoint, recording the newest `updated_at` loaded and when the load finished. Write it only after a run folder loads completely, and then write a `_LOADED` marker file into that run folder. Task 1 reads `_load_state` on the next run to set `since` and to decide where to stop paginating; it treats any run folder without `_LOADED` as unfinished and resumes it.
-
-> NOTE: A `dbt` reference can be found [here](DBT-REFERENCE.md).
+**Load state.** Keep a `_load_state` table with one row per repo and endpoint, recording the newest `updated_at` loaded and when the load finished. Write it only after a run folder loads completely, and then write a `_LOADED` marker file into that run folder. Task 1 reads `_load_state` on the next run to set `since` and to decide where to stop paginating; it treats any run folder without `_LOADED` as unfinished and resumes it. Think of this table as tracking every successful action in this task, so that any hiccup does not require a full restart.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |

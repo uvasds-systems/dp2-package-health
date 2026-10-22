@@ -53,7 +53,16 @@ In the reference example a GitHub Gist repository was used, but any normal GitHu
 
 ### Private repositories
 
-If your repo is private, the Prefect worker needs your PAT to clone it. Instead of passing `GIT_URL` as a plain string, wrap it in a `GitRepository` object and pass your Secret block as the credential:
+If your repo is private, the Prefect worker needs your PAT to clone it. A PAT with no scopes can only read public repositories, so generate a new one that can also read private repositories, and store it in your Secret block in place of the old one:
+
+1. Go to GitHub → Settings → Developer settings → Personal access tokens → **Tokens (classic)** → "Generate new token (classic)".
+2. Set an expiration that lasts past the end of the semester.
+3. Check the **`repo`** scope. No other scopes are needed.
+4. Copy the token and update the value of your Secret block (e.g. `nem2p-pat`).
+
+A fine-grained token also works if you prefer narrower access: grant it access to your project repository with **Contents: Read-only** permission.
+
+Instead of passing `GIT_URL` as a plain string, wrap it in a `GitRepository` object and pass your Secret block as the credential:
 
 ```
 from prefect.blocks.system import Secret
