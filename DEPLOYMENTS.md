@@ -13,7 +13,7 @@ Here's how to set that up and enable it:
    1. Go to https://sds-prefect.pods.uvarc.io/v2/blocks
    2. Select "+ New storage block"
    3. Select "Secret" (a generic secret), then "Create"
-   4. Give the block a unique **name**, using your computing ID, such as "nem2p-pat" (lowercase letters, numbers, and dashes only). The value should be of the "password" type and contain the actual value of your PAT.
+   4. Give the block a unique **name**, using your computing ID, such as `nem2p-pat` (lowercase letters, numbers, and dashes only). The value should be of the "password" type and contain the actual value of your PAT.
    5. Click "Save".
 3. To use a Prefect Block within your flow, use this syntax:
 
@@ -56,7 +56,7 @@ In the reference example a GitHub Gist repository was used, but any normal GitHu
 If your repo is private, the Prefect worker needs your PAT to clone it. A PAT with no scopes can only read public repositories, so generate a new one that can also read private repositories, and store it in your Secret block in place of the old one:
 
 1. Go to GitHub → Settings → Developer settings → Personal access tokens → **Tokens (classic)** → "Generate new token (classic)".
-2. Set an expiration that lasts past the end of the semester.
+2. Set an expiration that lasts past the end of the semester (60 days).
 3. Check the **`repo`** scope. No other scopes are needed.
 4. Copy the token and update the value of your Secret block (e.g. `nem2p-pat`).
 
@@ -97,7 +97,6 @@ To publish your deployment once written (and the entire code including your GIT_
     prefect deploy ./main.py:<flow_function_name> \
         --name nem2p-deployment \
         --pool uvasds-k8s-pool
-
 
 ## Test your deployment
 

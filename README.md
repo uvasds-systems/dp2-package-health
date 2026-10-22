@@ -244,7 +244,7 @@ These items separate strong submissions from complete ones.
 | --- | --- | --- |
 | GraphQL ingestion | Rewrite PR and review ingestion against the [**GitHub GraphQL API**](https://docs.github.com/en/graphql) with cursor pagination, tracking the 5,000-point hourly budget from the `rateLimit` field. Log request counts and runtime for REST vs. GraphQL. | 3 |
 | Concurrent fetching | Use Prefect task mapping or async requests to fetch repos in parallel while a shared limiter keeps total usage under the quota. | 2 |
-| Scheduled deployment | A Prefect deployment with a weekly schedule runs the incremental flow; the README shows the deployment command and one scheduled run's log. [See note](DEPLOYMENTS.md). | 2 |
+| Scheduled deployment | A Prefect deployment with a weekly schedule runs the incremental flow; the `DEPLOYMENTS.md` file shows the deployment command and one scheduled run's log. [Read more](DEPLOYMENTS.md). | 2 |
 | API Odometer | Implement an overall tracking mechanism that tracks the total number of API requests per flow run. | 1 |
 
 ## Oral interview — 10 points
