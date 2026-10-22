@@ -6,9 +6,9 @@ Released: Oct 23, 2026
 
 In this project students will build one Prefect flow that pulls GitHub activity for five data science packages and ranks them from healthiest to least healthy development community. The project is worth 100 points: 92 core and 8 extended.
 
-The flow must run end to end from a single entry point and contain six tasks: (1) ingest from the GitHub API, (2) land raw data, (3) transform and test with `dbt`, (4) reconcile and summarize, (5) model and rank, (6) plot. Each task is graded on its own, and each is designed to require real problem solving rather than a single library call.
+The flow must run end to end from a single entry point and contain six tasks: (1) extract from the GitHub API to JSON files, (2) load into DuckDB, (3) transform and test with `dbt`, (4) reconcile and summarize, (5) model and rank, (6) plot. Each task is graded on its own, and each is designed to require real problem solving rather than a single library call.
 
-Analysis window: **2023-01-01 through 2025-12-31** (36 months). A fixed window keeps results reproducible and comparable across projects.
+Analysis window: Three years **2023-01-01 through 2025-12-31** (36 months). A fixed window keeps results reproducible and comparable across projects.
 
 ## Package selection
 
@@ -22,9 +22,9 @@ Each set mixes two very large projects, two mid-size projects, and one smaller o
 | B | `pandas-dev/pandas`, `matplotlib/matplotlib` | `statsmodels/statsmodels`, `dmlc/xgboost` | `networkx/networkx` |
 | C | `scipy/scipy`, `pola-rs/polars` | `plotly/plotly.py`, `microsoft/LightGBM` | `pydata/xarray` |
 
-A student may swap one package within the same size tier with instructor approval. But avoid monorepos such as `apache/arrow` and very large repos such as `pytorch/pytorch`; they distort comparisons and can exhaust a day of API quota.
+Indicate your selection A, B, or C in the Canvas quiz form.
 
-## General requirements — 14 points
+## General requirements — 15 points
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
@@ -38,31 +38,101 @@ A student may swap one package within the same size tier with instructor approva
 | Reproducibility | Dependencies pinned in `requirements.txt`, `Pipfile`, or `pyproject.yaml`); README explains setup, run command, and expected runtime. | 1 |
 | No cruft | The repository contains no database files, log files, raw API dumps, or caches. It contains no binaries, `venv` folder or virtualenv artifacts apart from dependency manifests (above) | 2 |
 
-## Task 1: Ingestion — 20 points
+## How Tasks 1 and 2 fit together
 
-The task pulls every required dimension for all five repositories within the analysis window, across every page, while carefully working around GitHub's ratelimits.
+Tasks 1 and 2 split the work of getting data from GitHub into DuckDB into two separate jobs:
+
+```
+GitHub API ──Task 1: Extract──▶ data/raw/*.json ──Task 2: Load──▶ packages.duckdb (raw_* tables) ──Task 3: dbt──▶ marts
+```
+
+- **Task 1 only talks to GitHub and writes files.** It never writes to DuckDB. Its job is to get every page of every endpoint onto disk, without exceeding the rate limit and without losing work if the run is interrupted.
+- **Task 2 only reads files and writes to DuckDB.** It never calls the API. Its job is to load the landed files into raw tables so that re-running it never creates duplicates.
+
+Because the raw responses stay on disk, you can fix a bug in Task 2 or any `dbt` model and rerun it without spending API quota. Add `data/` to `.gitignore`; landed data files must never be committed (see *No cruft* above).
+
+## Task 1: Extract — 18 points
+
+Pull every required endpoint for all five repositories, across every page, and write each response page to disk as a JSON file. Restrict to the analysis window wherever the endpoint supports it (`since`/`until` for commits, `since` for issues and comments). For endpoints without date filters, sort by `updated` descending and stop paginating once you pass the window start.
+
+Example URL using `since` and `until`:
+
+    https://api.github.com/repos/numpy/numpy/commits?since=2023-01-01T00:00:00Z&until=2025-12-31T23:59:59Z&per_page=100
+
+**Required endpoints** (per repo; `{r}` = `owner/name`):
+
+| Endpoint | Path | Notes |
+| --- | --- | --- |
+| Repository | `GET /repos/{r}` | One call. Needed for Task 4 reconciliation (e.g. `open_issues_count`). |
+| Community profile | `GET /repos/{r}/community/profile` | One call. CONTRIBUTING, CODE_OF_CONDUCT, etc. |
+| Commits | `GET /repos/{r}/commits?since=…&until=…` | |
+| Issues | `GET /repos/{r}/issues?state=all&since=…` | Also returns PRs. Separate them using the `pull_request` key. |
+| Issue comments | `GET /repos/{r}/issues/comments?since=…` | Repo-wide list, used to compute first response time on issues. |
+| Pull requests | `GET /repos/{r}/pulls?state=all&sort=updated&direction=desc` | |
+| PR detail | `GET /repos/{r}/pulls/{number}` | One call per merged PR in the window (lines changed). |
+| PR reviews | `GET /repos/{r}/pulls/{number}/reviews` | One call per merged PR in the window (first review time). |
+| Releases | `GET /repos/{r}/releases` | |
+| Contributors | `GET /repos/{r}/contributors` | |
+
+You may add other endpoints if you use them in a metric.
+
+**Landing format.** Write one file per response page:
+
+```
+data/raw/<run_id>/<owner>__<repo>/<endpoint>/page_0001.json
+```
+
+Each file is a JSON object with the request metadata and the unmodified response body:
+
+```json
+{
+  "repo": "numpy/numpy",
+  "endpoint": "issues",
+  "url": "https://api.github.com/repos/numpy/numpy/issues?state=all&per_page=100&page=1",
+  "page": 1,
+  "fetched_at": "2026-11-02T14:03:11Z",
+  "data": [ ... ]
+}
+```
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Required endpoints | Collects commits, issues, pull requests, releases, contributors, etc. for all five repos. Issues and PRs are separated (the issues endpoint also returns PRs). Other relevant API data from the repo can be added. | 3 |
-| Detail calls | Fetches per-item data for every merged PR in the window: reviews and first-response time. This multiplies call volume and is what pushes large repos past the hourly quota. | 3 |
-| Pagination | Follows the `Link` header (`rel="next"`) with `per_page=100` until exhausted. Record counts are logged per endpoint per repo. | 3 |
-| Primary rate limit | Reads `X-RateLimit-Remaining` and `X-RateLimit-Reset` on every response and sleeps until reset before the budget hits zero. The 5,000 requests/hour authenticated limit is fixed and cannot be raised. | 3 |
-| Other HTTP errors | Handles 403/429 and other errors with standard Prefect `retries` and `retry_delay` flags in the appropriate task(s). | 3 |
-| Resumability | A run interrupted mid-ingestion resumes from a checkpoint (last page or `since` timestamp) instead of starting over. Demonstrated in the README with log excerpts. | 3 |
+| Required endpoints | Every endpoint in the table above is fetched for all five repos. Issues and PRs are separated. | 3 |
+| Detail calls | PR detail and reviews are fetched for every merged PR in the window. These calls multiply your request volume and are what push the large repos past the hourly limit. | 3 |
+| Pagination | Follows the `Link` header (`rel="next"`) with `per_page=100` until no next page remains. Record counts are logged per endpoint per repo. | 3 |
+| Primary rate limit | Reads `X-RateLimit-Remaining` and `X-RateLimit-Reset` on every response and sleeps until the reset time before the budget reaches zero. The 5,000 requests/hour limit cannot be raised. | 3 |
+| Other HTTP errors | Handles 403/429 (secondary rate limits; honor `Retry-After`) and 5xx errors using Prefect `retries` and `retry_delay_seconds` on the appropriate task(s). | 2 |
+| Landing files | Every response page is written in the format above, with exactly one file per page. | 2 |
+| Resumability | If a run is interrupted, the next run resumes the unfinished `<run_id>` folder and skips pages already on disk instead of starting over. Show this in your README with log excerpts from an interrupted run and its resumed run. | 2 |
 
+## Task 2: Load to DuckDB — 9 points
 
-## Task 2: Raw ingestion — 8 points
+Read the landed JSON files from the current run folder and load them into raw tables in `packages.duckdb`. `dbt` builds everything downstream from these tables in Task 3.
 
-Data lands in a local DuckDB database as raw JSON responses; `dbt` builds everything downstream in Task 3.
+**Raw table design.** Create one table per endpoint (`raw_commits`, `raw_issues`, `raw_pull_requests`, and so on). Each row is **one record** (one commit, one issue, one review), not one page. Each table has a few typed key columns and the full record as JSON:
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `repo` | VARCHAR | `owner/name` |
+| `id` | VARCHAR or BIGINT | The record's natural key (see below) |
+| `updated_at` | TIMESTAMP | From the record, where it has one |
+| `fetched_at` | TIMESTAMP | From the landing file |
+| `source_file` | VARCHAR | Path of the landing file the row came from |
+| `payload` | JSON | The complete record as returned by GitHub |
+
+Natural keys: commits → `sha`; issues and PRs → `number`; comments, reviews, and releases → `id`; contributors → `login`. Primary key is `(repo, id)`.
+
+Leave the remaining fields inside `payload`. Your `dbt` staging models (Task 3) extract the fields you need, so if you later find you need another field you only change a model, not re-fetch from the API.
+
+**Load state.** Keep a `_load_state` table with one row per repo and endpoint, recording the newest `updated_at` loaded and when the load finished. Write it only after a run folder loads completely, and then write a `_LOADED` marker file into that run folder. Task 1 reads `_load_state` on the next run to set `since` and to decide where to stop paginating; it treats any run folder without `_LOADED` as unfinished and resumes it.
 
 > NOTE: A `dbt` reference can be found [here](DBT-REFERENCE.md).
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Raw layer | Each API response is stored as JSON with repo, endpoint, page, and fetch timestamp, so every dbt model can be rebuilt without calling the API again. | 3 |
-| Idempotent loads | Re-running the flow produces identical raw row counts; loads upsert on repo, endpoint, and natural key, never blind inserts. | 3 |
-| Incremental loads | A second run fetches only records updated since the last successful run, using stored checkmarks. | 2 |
+| Raw tables | One table per endpoint, one row per record, with the columns above. Every `dbt` model can be rebuilt from these tables without calling the API. | 3 |
+| Idempotent loads | Loads upsert on `(repo, id)` (e.g. `INSERT OR REPLACE` or `MERGE`), never blind inserts. Running Task 2 twice on the same run folder produces identical row counts; show both counts in the log. | 3 |
+| Incremental loads | A second flow run requests only records updated since the `_load_state` watermark (detail calls only for new or updated merged PRs), and Task 2 upserts them into the existing tables. Log the request count for a full run and an incremental run. | 3 |
 
 ## Task 3: `dbt` transformations and tests — 14 points
 
@@ -140,23 +210,24 @@ The flow saves at least three plots as PNG to a `plots/` directory, committed to
 | Relationship plot | A scatter or bubble chart encoding at least three variables (for example, x = time to first response, y = close ratio, size = active contributors, color = repo). | 2 |
 | Presentation | Titles, labeled axes with units, a consistent color per repo across all plots, and a one-paragraph interpretation of each plot in the README. | 2 |
 
-## Extended process — 8 points
+## Extended process — 9 points
 
 These items separate strong submissions from complete ones.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| GraphQL ingestion | Rewrite PR and review ingestion against the GitHub GraphQL API with cursor pagination, tracking the 5,000-point hourly budget from the `rateLimit` field. Log request counts and runtime for REST vs. GraphQL. | 3 |
+| GraphQL ingestion | Rewrite PR and review ingestion against the [**GitHub GraphQL API**](https://docs.github.com/en/graphql) with cursor pagination, tracking the 5,000-point hourly budget from the `rateLimit` field. Log request counts and runtime for REST vs. GraphQL. | 3 |
 | Concurrent fetching | Use Prefect task mapping or async requests to fetch repos in parallel while a shared limiter keeps total usage under the quota. | 3 |
 | Scheduled deployment | A Prefect deployment with a weekly schedule runs the incremental flow; the README shows the deployment command and one scheduled run's log. [See note](DEPLOYMENTS.md). | 2 |
+| API Odometer | Implement an overall tracking mechanism that tracks the total number of API requests per flow run. | 1 |
 
 ## Point summary
 
 | Section | Points | Score |
 | --- | --- | --- |
-| General requirements | 14 |  |
-| Task 1: Ingestion | 20 |  |
-| Task 2: Raw landing | 8 |  |
+| General requirements | 15 |  |
+| Task 1: Extract | 18 |  |
+| Task 2: Load to DuckDB | 9 |  |
 | Task 3: `dbt` transformations and tests | 14 |  |
 | Task 4: Reconciliation, outliers, and statistics | 10 |  |
 | Task 5: Health modeling and ranking | 16 |  |
