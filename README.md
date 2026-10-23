@@ -1,12 +1,10 @@
 # Data Project 2 // Open Source Package Health: GitHub Data Pipeline
 
-Released: Oct 23, 2026
-
-Due: Oct 30, 2026
+Released: Oct 23, 2026 | Due: Nov 02, 2026
 
 ## Overview
 
-In this project students will build one Prefect flow that pulls GitHub activity for three data science packages and ranks them from healthiest to least healthy development community. The project is worth 100 points: 82 core, 8 extended, and 10 for an oral interview.
+In this project students will build one Prefect flow that pulls GitHub activity for three data science packages and ranks them from healthiest to least healthy development community. The project is worth **100 points**: **82** core, **8** extended, and **10** for an oral interview.
 
 The flow must run end to end from a single entry point and contain six tasks: (1) extract from the GitHub API to JSON files, (2) load into DuckDB, (3) transform and test with `dbt`, (4) test and validate, (5) model and rank, (6) plot. Each task is graded on its own, and each is designed to require real problem solving rather than a single library call.
 
@@ -95,11 +93,8 @@ Example URL using `since`:
 
 | Endpoint | Path | Notes |
 | --- | --- | --- |
-| Repository | `GET /repos/{r}` | One call. Repository metadata (description, creation date, default branch). |
-| Community profile | `GET /repos/{r}/community/profile` | One call. CONTRIBUTING, CODE_OF_CONDUCT, etc. |
 | Commits | `GET /repos/{r}/commits?since=…` | |
 | Pull requests | `GET /repos/{r}/pulls?state=all&sort=updated&direction=desc` | |
-| PR detail | `GET /repos/{r}/pulls/{number}` | One call per merged PR in the window (lines changed). |
 | PR reviews | `GET /repos/{r}/pulls/{number}/reviews` | One call per PR created in the window, merged or not (first review time). |
 | Releases | `GET /repos/{r}/releases` | |
 
@@ -142,7 +137,7 @@ On the very first run there is no `data/raw/` and no `_load_state`, so Task 1 fe
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Required endpoints | Every endpoint in the table above is fetched for all three repos. | 3 |
-| Detail calls | PR detail is fetched for every merged PR in the window, and reviews for every PR created in the window. These calls multiply your request volume and are what push the large repos past the hourly limit. | 3 |
+| Review calls | Reviews are fetched for every PR created in the window, merged or not. These per-PR calls multiply your request volume and are what push each set past the hourly limit. | 3 |
 | Pagination | Follows the `Link` header (`rel="next"`) with `per_page=100` until no next page remains. Record counts are logged per endpoint per repo. | 3 |
 | Primary rate limit | Reads `X-RateLimit-Remaining` and `X-RateLimit-Reset` on every response and sleeps until the reset time before the budget reaches zero. The 5,000 requests/hour limit cannot be raised. | 3 |
 | Other HTTP errors | Handles 403/429 (secondary rate limits; honor `Retry-After`) and 5xx errors using Prefect `retries` and `retry_delay_seconds` on the appropriate task(s). | 1 |
@@ -164,7 +159,7 @@ Read the landed JSON files in `data/raw/` and load them into raw tables in `pack
 | `source_file` | VARCHAR | Path of the landing file the row came from |
 | `payload` | JSON | The complete record as returned by GitHub |
 
-Natural keys: commits → `sha`; PRs and PR detail → `number`; reviews and releases → `id`; repository and community profile → `repo` (one row per repo, so `id` is just `owner/name`). Primary key is `(repo, id)`.
+Natural keys: commits → `sha`; PRs → `number`; reviews and releases → `id`. Primary key is `(repo, id)`.
 
 Leave the remaining fields inside `payload`. Your `dbt` staging models (Task 3) extract the fields you need, so if you later find you need another field you only change a model, not re-fetch from the API.
 
@@ -174,7 +169,7 @@ Leave the remaining fields inside `payload`. Your `dbt` staging models (Task 3) 
 | --- | --- | --- |
 | Raw tables | One table per endpoint, one row per record, with the columns above. Every `dbt` model can be rebuilt from these tables without calling the API. | 3 |
 | Idempotent loads | Loads upsert on `(repo, id)` (e.g. `INSERT OR REPLACE` or `MERGE`), never blind inserts. Running Task 2 twice on the same files produces identical row counts; show both counts in the log. | 3 |
-| Incremental loads | A second flow run requests only records updated since the `_load_state` watermark (detail and review calls only for new or updated PRs), and Task 2 upserts them into the existing tables. Log the request count for a full run and an incremental run. | 3 |
+| Incremental loads | A second flow run requests only records updated since the `_load_state` watermark (review calls only for new or updated PRs), and Task 2 upserts them into the existing tables. Log the request count for a full run and an incremental run. | 3 |
 
 ## Task 3: `dbt` transformations and tests — 12 points
 
@@ -187,20 +182,19 @@ Suggested models (students may add more):
 | Model | Grain | Precalculated columns |
 | --- | --- | --- |
 | `stg_*` | One per raw endpoint | Typed columns, UTC timestamps, deduplicated on natural key, `is_bot` flag (e.g. `user.type = 'Bot'` or a login ending in `[bot]`) |
-| `fct_pull_requests` | One row per PR | Hours to first review, hours to merge, hours to close, merged / closed-unmerged / open flags, open at run time, stale (no activity in 180+ days), lines changed |
-| `fct_releases` | One row per release | Days since previous release, major/minor/patch from tag, prerelease flag |
-| `dim_contributors` | One row per PR author (`user.login`) per repo | First and last PR date, PRs opened and merged, active quarters |
+| `fct_pull_requests` | One row per PR | Hours to first review, hours to merge, hours to close, merged / closed-unmerged / open flags, open at run time, stale (no activity in 180+ days), has approving review |
+| `fct_releases` | One row per release | Days since previous release, prerelease flag |
 | `mart_repo_monthly` | Repo × month | PRs opened, merged, and closed unmerged; merge ratio; median first-review and merge hours; commits; active contributors |
 | `mart_health_inputs` | One row per repo | Every metric Task 5 scores, already size-normalized |
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Staging models | One staging model per raw endpoint with typed columns, deduplication, and bot flagging; the bot rule is documented. | 2 |
-| Fact and dimension marts | `fct_pull_requests`, `fct_releases`, and `dim_contributors` built with the precalculated durations and flags above. | 3 |
+| Fact marts | `fct_pull_requests` and `fct_releases` built with the precalculated durations and flags above. | 3 |
 | Aggregate marts | `mart_repo_monthly` and `mart_health_inputs` feed Tasks 4–6 directly; no downstream task recomputes durations in Python. | 2 |
 | Open items | PRs still open at run time are kept and marked open, never dropped or given a fake close date. The README explains how medians treat them. | 1 |
-| Generic tests | `unique` and `not_null` on every primary key, `relationships` from facts to repos and contributors, `accepted_values` on state columns. | 1 |
-| Singular tests | Custom SQL tests assert no PR closed or merged before it was created, no review submitted before its PR was created, and every timestamp falls inside the window. Results print to screen and log. | 2 |
+| Generic tests | `unique` and `not_null` on every primary key, `relationships` from reviews to pull requests, `accepted_values` on state columns. | 1 |
+| Singular tests | Custom SQL tests assert no PR closed or merged before it was created, and no review submitted before its PR was created. Results print to screen and log. | 2 |
 | Documentation | `schema.yml` describes every mart and column; raw tables are declared as dbt sources. | 1 |
 
 ## Task 4: Testing and validation — 9 points
@@ -210,30 +204,29 @@ This task reads the `dbt` marts, confirms that nothing was lost between stages, 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Completeness checks | For each repo and endpoint, every distinct `(repo, id)` record in `data/raw/` appears in the raw table, and the raw table's row count matches its staging model. Every repo has commits in every complete month of the window (the current, partial month is exempt). Any mismatch fails the task. | 3 |
-| Outlier detection | Scan time to merge, PR size, and weekly commits for values far outside the typical range (for example, a PR open for years or a PR that changes 50,000 lines). State the cutoff you used, list the records it flags, and say whether you keep, cap, or drop them, and why. | 3 |
-| Descriptive statistics | Per repo: median and 90th percentile time to first review and time to merge; commits per week; releases per year; active contributors per quarter. Printed to screen and log. | 3 |
+| Outlier detection | Scan time to merge and weekly commits for values far outside the typical range (for example, a PR open for years or a week with a burst of automated commits). State the cutoff you used, list the records it flags, and say whether you keep, cap, or drop them, and why. | 3 |
+| Descriptive statistics | Per repo: median and 90th percentile time to first review and time to merge; commits per week; releases per year. Printed to screen and log. | 3 |
 
 Medians and percentiles are required because these durations are heavily right-skewed; a mean alone earns no credit.
 
 ## Task 5: Health modeling and ranking — 14 points
 
-Students build a composite health score from at least six metrics spanning at least four dimensions, then rank the three repos and show the ranking holds up.
+Students build a composite health score from at least five metrics spanning at least three dimensions, then rank the three repos and show the ranking holds up.
 
 | Dimension | Example metrics |
 | --- | --- |
 | Activity | Commits per week; trend slope over the window |
-| Responsiveness | Median time to first PR review; share of PRs reviewed within 7 days |
+| Responsiveness | Median time to first PR review; share of PRs reviewed within 7 days; share of merged PRs with an approving review |
 | Throughput | PRs merged ÷ PRs opened per month; merge rate (merged ÷ closed); median time to merge |
 | Backlog | Open-PR growth rate; share of open PRs with no activity in 180+ days |
 | Release cadence | Releases per year; regularity (coefficient of variation of days between releases) |
 | Contributor base | Active PR authors per quarter; bus factor (fewest authors accounting for 50% of merged PRs) |
-| Community health | Community profile files (CONTRIBUTING, CODE\_OF\_CONDUCT); share of merged PRs with an approving review |
 
-Stars and forks measure popularity, not health, and do not count toward the six metrics.
+Stars and forks measure popularity, not health, and do not count toward the five metrics.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Metric design | Six or more metrics across four or more dimensions, read from `mart_health_inputs`, each with a written definition and a stated direction (higher or lower is healthier). | 3 |
+| Metric design | Five or more metrics across three or more dimensions, read from `mart_health_inputs`, each with a written definition and a stated direction (higher or lower is healthier). | 3 |
 | Size normalization | Metrics are normalized so large projects do not win by volume alone (per-contributor rates, ratios, or ranks rather than raw counts). | 3 |
 | Scoring model | Metrics are standardized (z-score, min-max, or rank) and combined with weights the student justifies in writing. | 3 |
 | Trend component | At least one metric captures direction of change (for example, a regression slope over the full window), not only a level. | 2 |
@@ -257,7 +250,7 @@ These items separate strong submissions from complete ones.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| GraphQL ingestion | Rewrite PR and review ingestion against the [**GitHub GraphQL API**](https://docs.github.com/en/graphql) with cursor pagination, tracking the 5,000-point hourly budget from the `rateLimit` field. Log request counts and runtime for REST vs. GraphQL. One GraphQL query can return 100 PRs with their line counts and first review, replacing about 200 REST calls. Done early, this cuts a full run from hours to minutes. | 3 |
+| GraphQL ingestion | Rewrite PR and review ingestion against the [**GitHub GraphQL API**](https://docs.github.com/en/graphql) with cursor pagination, tracking the 5,000-point hourly budget from the `rateLimit` field. Log request counts and runtime for REST vs. GraphQL. One GraphQL query can return 100 PRs with their first review, replacing about 100 REST calls. Done early, this cuts a full run from hours to minutes. | 3 |
 | Concurrent fetching | Use Prefect task mapping or async requests to fetch repos in parallel while a shared limiter keeps total usage under the quota. | 2 |
 | Scheduled deployment | A Prefect deployment with a weekly schedule runs the incremental flow; the `DEPLOYMENTS.md` file shows the deployment command and one scheduled run's log. [Read more](DEPLOYMENTS.md). | 2 |
 | API Odometer | Implement an overall tracking mechanism that tracks the total number of API requests per flow run. | 1 |
