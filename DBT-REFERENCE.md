@@ -38,13 +38,34 @@
         target: dev
         outputs:
             dev:
-            type: duckdb
-            path: packages.duckdb
-            threads: 8
+                type: duckdb
+                path: packages.duckdb
+                threads: 8
     ```
 
 3. Loading the raw data from the GitHub API will occur as a separate @task within the Prefect flow, so `dbt` does not need to stage the initial data - it will find the data in `packages.duckdb`.
-4. Develop your mart(s) as necessary to build various dimensions around package health. This should include new, calculated columns, aggregate results, etc.
+4. Develop your mart(s) as necessary to build various dimensions around package health. This should include new, calculated columns, aggregate results, etc. A layout matching the suggested models in the README (Task 3):
+
+    ```
+    models/
+    ├── staging/
+    │   ├── sources.yml              # raw_commits, raw_pull_requests, raw_pr_reviews, raw_releases
+    │   ├── stg_commits.sql
+    │   ├── stg_pull_requests.sql
+    │   ├── stg_pr_reviews.sql
+    │   └── stg_releases.sql
+    └── marts/
+        ├── schema.yml               # descriptions + generic tests
+        ├── fct_pull_requests.sql
+        ├── fct_releases.sql
+        ├── mart_repo_monthly.sql
+        └── mart_health_inputs.sql
+    tests/
+    ├── assert_pr_closed_after_created.sql
+    └── assert_review_after_pr_created.sql
+    ```
+
+    Reference raw tables with `{{ source('raw', 'raw_commits') }}` and other models with `{{ ref('stg_commits') }}`. A singular test is a `SELECT` that returns the offending rows; it passes when it returns none.
 5. Develop tests as necessary to verify you are getting values within an expected range, testing for outliers, `NULL` values, etc.
 6. Implement idempotency by dropping tables before creating or inserting into them in a new run.
 7. Test your entire `dbt` build and test process by hand to validate success and meaningful results to be sure that task is ready to run as part of the larger workflow.

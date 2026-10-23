@@ -15,7 +15,7 @@ flowchart LR
     api[(GitHub API)] --> t1
     subgraph flow [Prefect flow]
         direction LR
-        t1["<b>1 · Extract</b><br/>JSON pages<br/>data/raw/"] --> t2["<b>2 · Load</b><br/>raw_* tables<br/>packages.duckdb"] --> t3["<b>3 · dbt build</b><br/>staging, facts,<br/>marts + tests"] --> t4["<b>4 · Testing &<br/>validation</b><br/>checks, outliers,<br/>statistics"] --> t5["<b>5 · Model</b><br/>health scores<br/>+ ranking"] --> t6["<b>6 · Plot</b><br/>PNGs<br/>plots/"]
+        t1["<b>1 · Extract</b><br/>4 endpoints × 3 repos<br/>data/raw/"] --> t2["<b>2 · Load</b><br/>4 raw_* tables<br/>packages.duckdb"] --> t3["<b>3 · dbt build</b><br/>4 stg, 2 fct, 2 mart<br/>+ tests"] --> t4["<b>4 · Testing &<br/>validation</b><br/>checks, outliers,<br/>statistics"] --> t5["<b>5 · Model</b><br/>health scores<br/>+ ranking"] --> t6["<b>6 · Plot</b><br/>PNGs<br/>plots/"]
     end
     classDef box fill:#ffffff,stroke:#6b7280,color:#111827
     class api,t1,t2,t3,t4,t5,t6 box
@@ -177,15 +177,15 @@ A `dbt` project in the repository turns raw JSON into tested staging models and 
 
 A `dbt` Reference is available [here](DBT-REFERENCE.md).
 
-Suggested models (students may add more):
+Suggested models (students may add more). Field names refer to the GitHub JSON in `payload` (e.g. `payload->>'created_at'`). **Run time** means `max(fetched_at)` in the raw tables, so a rebuild without new data gives the same results. Convert durations with `date_diff('second', start, end) / 3600.0` for hours or `date_diff('day', start, end)` for days.
 
 | Model | Grain | Precalculated columns |
 | --- | --- | --- |
-| `stg_*` | One per raw endpoint | Typed columns, UTC timestamps, deduplicated on natural key, `is_bot` flag (e.g. `user.type = 'Bot'` or a login ending in `[bot]`) |
-| `fct_pull_requests` | One row per PR | Hours to first review, hours to merge, hours to close, merged / closed-unmerged / open flags, open at run time, stale (no activity in 180+ days), has approving review |
-| `fct_releases` | One row per release | Days since previous release, prerelease flag |
-| `mart_repo_monthly` | Repo × month | PRs opened, merged, and closed unmerged; merge ratio; median first-review and merge hours; commits; active contributors |
-| `mart_health_inputs` | One row per repo | Every metric Task 5 scores, already size-normalized |
+| `stg_*` | One per raw endpoint | <ul><li>**All models:** cast timestamps with `::TIMESTAMPTZ` (GitHub returns UTC); keep the latest row per `(repo, id)` using `qualify row_number() over (partition by repo, id order by fetched_at desc) = 1`.</li><li>**Bot rule:** `is_bot = user.type = 'Bot' OR user.login LIKE '%[bot]'`. Apply it to the PR author, the reviewer, and the commit author.</li><li>`stg_commits`: `sha`, `author.login` (can be null when the commit email isn't linked to an account; `is_bot` is then false), `committed_at` from `commit.author.date`.</li><li>`stg_pull_requests`: `number`, `user.login`, `state`, `created_at`, `updated_at`, `closed_at`, `merged_at`.</li><li>`stg_pr_reviews`: `id`, `pr_number` (parse the trailing number from `pull_request_url`), `user.login`, `state`, `submitted_at`. Drop `PENDING` reviews; they have no `submitted_at`.</li><li>`stg_releases`: `id`, `tag_name`, `published_at`, `prerelease`. Drop rows where `draft` is true.</li></ul> |
+| `fct_pull_requests` | One row per PR created on or after 2024-01-01 | <ul><li>`is_merged`: `merged_at IS NOT NULL`.</li><li>`is_closed_unmerged`: `state = 'closed' AND merged_at IS NULL`.</li><li>`is_open`: `state = 'open'` (open at run time).</li><li>`first_review_at`: `min(submitted_at)` from `stg_pr_reviews` for this PR, excluding reviews by the PR author and by bots.</li><li>`hours_to_first_review`: from `created_at` to `first_review_at`. NULL if never reviewed.</li><li>`reviewed_within_7d`: `hours_to_first_review <= 168`. False if never reviewed.</li><li>`hours_to_merge`: from `created_at` to `merged_at`. NULL unless merged.</li><li>`hours_to_close`: from `created_at` to `closed_at`, whether merged or not. NULL if open.</li><li>`is_stale`: `is_open AND updated_at < run time − 180 days`.</li><li>`has_approving_review`: any non-author, non-bot review with `state = 'APPROVED'`.</li></ul> |
+| `fct_releases` | One row per published release on or after 2024-01-01 | <ul><li>`days_since_previous`: `date_diff('day', lag(published_at) over (partition by repo order by published_at), published_at)`. Compute the `lag` **before** filtering to the window, so the first release in the window still measures its gap to the release before it.</li><li>`is_prerelease`: `prerelease`.</li></ul> |
+| `mart_repo_monthly` | Repo × month, January 2024 through the run month | <ul><li>Build the month list with `generate_series` (or a date spine) crossed with the three repos, so months with no activity show 0 instead of disappearing.</li><li>Count each event in the month it happened:<ul><li>`prs_opened`: by `date_trunc('month', created_at)`.</li><li>`prs_merged`: by `merged_at`.</li><li>`prs_closed_unmerged`: by `closed_at` where `is_closed_unmerged`.</li></ul></li><li>`merge_ratio`: `prs_merged / (prs_merged + prs_closed_unmerged)`. NULL when the denominator is 0.</li><li>`median_first_review_hours`: `median(hours_to_first_review)` of PRs opened that month (unreviewed PRs are NULL and fall out).</li><li>`median_merge_hours`: `median(hours_to_merge)` of PRs merged that month.</li><li>`commits`: count of `stg_commits` by `date_trunc('month', committed_at)`.</li><li>`active_contributors`: `count(DISTINCT login)` of non-bot PR authors who opened a PR that month.</li><li>`is_partial_month`: true for the run month.</li></ul> |
+| `mart_health_inputs` | One row per repo | <ul><li>One column per metric you score in Task 5, named for the metric. Every column is a rate, share, median, or slope, never a raw count.</li><li>Examples:<ul><li>`commits_per_week`: total commits ÷ (days in window ÷ 7).</li><li>`pct_reviewed_within_7d`: `avg(reviewed_within_7d::INT)` over PRs created at least 7 days before run time.</li><li>`median_hours_to_merge`: from `fct_pull_requests`.</li><li>`commit_trend`: `regr_slope(commits, month_index)` over complete months of `mart_repo_monthly`.</li><li>`releases_per_year`: releases ÷ (days in window ÷ 365.25).</li></ul></li></ul> |
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
@@ -211,7 +211,7 @@ Medians and percentiles are required because these durations are heavily right-s
 
 ## Task 5: Health modeling and ranking — 14 points
 
-Students build a composite health score from at least five metrics spanning at least three dimensions, then rank the three repos and show the ranking holds up.
+Students build a composite health score from at least four metrics spanning at least three dimensions, then rank the three repos.
 
 | Dimension | Example metrics |
 | --- | --- |
@@ -222,15 +222,14 @@ Students build a composite health score from at least five metrics spanning at l
 | Release cadence | Releases per year; regularity (coefficient of variation of days between releases) |
 | Contributor base | Active PR authors per quarter; bus factor (fewest authors accounting for 50% of merged PRs) |
 
-Stars and forks measure popularity, not health, and do not count toward the five metrics.
+Stars and forks measure popularity, not health, and do not count toward the four metrics.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Metric design | Five or more metrics across three or more dimensions, read from `mart_health_inputs`, each with a written definition and a stated direction (higher or lower is healthier). | 3 |
+| Metric design | Four or more metrics across three or more dimensions, read from `mart_health_inputs`, each with a written definition and a stated direction (higher or lower is healthier). | 4 |
 | Size normalization | Metrics are normalized so large projects do not win by volume alone (per-contributor rates, ratios, or ranks rather than raw counts). | 3 |
-| Scoring model | Metrics are standardized (z-score, min-max, or rank) and combined with weights the student justifies in writing. | 3 |
+| Scoring model | Metrics are standardized (z-score, min-max, or rank) and combined with weights the student justifies in writing. | 4 |
 | Trend component | At least one metric captures direction of change (for example, a regression slope over the full window), not only a level. | 2 |
-| Sensitivity analysis | The ranking is recomputed under at least two alternative weightings, or one metric left out at a time. The README states whether the top and bottom positions hold. | 2 |
 | Ranking output | A ranked table with score, rank, and per-dimension subscores prints to screen and log and is written back to the database. | 1 |
 
 ## Task 6: Multi-dimensional plots — 9 points
@@ -287,7 +286,7 @@ As discussed in class I will NOT be grading on the following:
 
 - Speed/latency of your solution. Fast is great but unnecessary in this context.
 - Optimization. It should get the job done, even if there are more refined ways to structure it.
-- The final ranking itself. There is no correct order; grading is based on your metric definitions, weight justification, and sensitivity analysis.
+- The final ranking itself. There is no correct order; grading is based on your metric definitions and weight justification.
 - Exact record counts. The window grows with each run and GitHub data shifts over time, so your counts will not match other students' exactly. Counts must only reconcile within your own pipeline (Task 4).
 - Library and style choices beyond the required tools. `requests` vs. `httpx`, pandas vs. polars, matplotlib vs. plotly, sync vs. async, and formatting are your call, as long as Prefect, DuckDB, and `dbt` are used as specified.
 
