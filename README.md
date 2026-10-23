@@ -10,7 +10,7 @@ In this project students will build one Prefect flow that pulls GitHub activity 
 
 The flow must run end to end from a single entry point and contain six tasks: (1) extract from the GitHub API to JSON files, (2) load into DuckDB, (3) transform and test with `dbt`, (4) test and validate, (5) model and rank, (6) plot. Each task is graded on its own, and each is designed to require real problem solving rather than a single library call.
 
-Analysis window: Three years **2023-01-01 through 2025-12-31** (36 months). A fixed window keeps results reproducible and comparable across projects.
+Analysis window: **2024-01-01 through the time of each run.** The start date is fixed and shared by all projects; the end is open, so the window grows with every run (34 months as of October 2026). There is no end date to configure: anything GitHub returns already falls before the run.
 
 ```mermaid
 flowchart LR
@@ -29,7 +29,7 @@ flowchart LR
 
 Students will choose one of three preassigned sets of packages. Fixed sets equalize the API workload and guarantee a spread of community sizes so the ranking has something to find.
 
-Each set mixes one large project with two smaller ones. The sets are balanced at roughly 7,000 PRs created and 5,500 PRs merged each across the analysis window.
+Each set mixes one large project with two smaller ones. The sets are balanced at roughly 7,000 PRs created and 5,500 PRs merged each across the analysis window (as of October 2026).
 
 | Set | Large (heavy pagination) | Smaller |
 | --- | --- | --- |
@@ -85,11 +85,11 @@ Because the raw responses stay on disk, you can fix a bug in Task 2 or any `dbt`
 
 > **Build your flow** in the `main.py` module. All flow and logic should be there, unless you incorporate other modules via import.
 
-Pull every required endpoint for all three repositories, across every page, and write each response page to disk as a JSON file. Restrict to the analysis window wherever the endpoint supports it (`since`/`until` for commits). Pull requests have no date filter: sort by `updated` descending and stop paginating once you pass the window start. Releases are small enough to fetch in full.
+Pull every required endpoint for all three repositories, across every page, and write each response page to disk as a JSON file. Restrict to the analysis window wherever the endpoint supports it (`since` for commits; no `until` is needed because the window runs through the present). Pull requests have no date filter: sort by `updated` descending and stop paginating once you pass the window start. Releases are small enough to fetch in full.
 
-Example URL using `since` and `until`:
+Example URL using `since`:
 
-    https://api.github.com/repos/numpy/numpy/commits?since=2023-01-01T00:00:00Z&until=2025-12-31T23:59:59Z&per_page=100
+    https://api.github.com/repos/numpy/numpy/commits?since=2024-01-01T00:00:00Z&per_page=100
 
 **Required endpoints** (per repo; `{r}` = `owner/name`):
 
@@ -97,7 +97,7 @@ Example URL using `since` and `until`:
 | --- | --- | --- |
 | Repository | `GET /repos/{r}` | One call. Repository metadata (description, creation date, default branch). |
 | Community profile | `GET /repos/{r}/community/profile` | One call. CONTRIBUTING, CODE_OF_CONDUCT, etc. |
-| Commits | `GET /repos/{r}/commits?since=…&until=…` | |
+| Commits | `GET /repos/{r}/commits?since=…` | |
 | Pull requests | `GET /repos/{r}/pulls?state=all&sort=updated&direction=desc` | |
 | PR detail | `GET /repos/{r}/pulls/{number}` | One call per merged PR in the window (lines changed). |
 | PR reviews | `GET /repos/{r}/pulls/{number}/reviews` | One call per PR created in the window, merged or not (first review time). |
@@ -187,7 +187,7 @@ Suggested models (students may add more):
 | Model | Grain | Precalculated columns |
 | --- | --- | --- |
 | `stg_*` | One per raw endpoint | Typed columns, UTC timestamps, deduplicated on natural key, `is_bot` flag (e.g. `user.type = 'Bot'` or a login ending in `[bot]`) |
-| `fct_pull_requests` | One row per PR | Hours to first review, hours to merge, hours to close, merged / closed-unmerged / open flags, open at window end, stale (no activity in 180+ days), lines changed |
+| `fct_pull_requests` | One row per PR | Hours to first review, hours to merge, hours to close, merged / closed-unmerged / open flags, open at run time, stale (no activity in 180+ days), lines changed |
 | `fct_releases` | One row per release | Days since previous release, major/minor/patch from tag, prerelease flag |
 | `dim_contributors` | One row per PR author (`user.login`) per repo | First and last PR date, PRs opened and merged, active quarters |
 | `mart_repo_monthly` | Repo × month | PRs opened, merged, and closed unmerged; merge ratio; median first-review and merge hours; commits; active contributors |
@@ -198,7 +198,7 @@ Suggested models (students may add more):
 | Staging models | One staging model per raw endpoint with typed columns, deduplication, and bot flagging; the bot rule is documented. | 2 |
 | Fact and dimension marts | `fct_pull_requests`, `fct_releases`, and `dim_contributors` built with the precalculated durations and flags above. | 3 |
 | Aggregate marts | `mart_repo_monthly` and `mart_health_inputs` feed Tasks 4–6 directly; no downstream task recomputes durations in Python. | 2 |
-| Open items | PRs still open at window end are kept and marked open, never dropped or given a fake close date. The README explains how medians treat them. | 1 |
+| Open items | PRs still open at run time are kept and marked open, never dropped or given a fake close date. The README explains how medians treat them. | 1 |
 | Generic tests | `unique` and `not_null` on every primary key, `relationships` from facts to repos and contributors, `accepted_values` on state columns. | 1 |
 | Singular tests | Custom SQL tests assert no PR closed or merged before it was created, no review submitted before its PR was created, and every timestamp falls inside the window. Results print to screen and log. | 2 |
 | Documentation | `schema.yml` describes every mart and column; raw tables are declared as dbt sources. | 1 |
@@ -209,7 +209,7 @@ This task reads the `dbt` marts, confirms that nothing was lost between stages, 
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Completeness checks | For each repo and endpoint, every distinct `(repo, id)` record in `data/raw/` appears in the raw table, and the raw table's row count matches its staging model. Every repo has commits in every month of the window. Any mismatch fails the task. | 3 |
+| Completeness checks | For each repo and endpoint, every distinct `(repo, id)` record in `data/raw/` appears in the raw table, and the raw table's row count matches its staging model. Every repo has commits in every complete month of the window (the current, partial month is exempt). Any mismatch fails the task. | 3 |
 | Outlier detection | Scan time to merge, PR size, and weekly commits for values far outside the typical range (for example, a PR open for years or a PR that changes 50,000 lines). State the cutoff you used, list the records it flags, and say whether you keep, cap, or drop them, and why. | 3 |
 | Descriptive statistics | Per repo: median and 90th percentile time to first review and time to merge; commits per week; releases per year; active contributors per quarter. Printed to screen and log. | 3 |
 
@@ -236,7 +236,7 @@ Stars and forks measure popularity, not health, and do not count toward the six 
 | Metric design | Six or more metrics across four or more dimensions, read from `mart_health_inputs`, each with a written definition and a stated direction (higher or lower is healthier). | 3 |
 | Size normalization | Metrics are normalized so large projects do not win by volume alone (per-contributor rates, ratios, or ranks rather than raw counts). | 3 |
 | Scoring model | Metrics are standardized (z-score, min-max, or rank) and combined with weights the student justifies in writing. | 3 |
-| Trend component | At least one metric captures direction of change (for example, a regression slope over 36 months), not only a level. | 2 |
+| Trend component | At least one metric captures direction of change (for example, a regression slope over the full window), not only a level. | 2 |
 | Sensitivity analysis | The ranking is recomputed under at least two alternative weightings, or one metric left out at a time. The README states whether the top and bottom positions hold. | 2 |
 | Ranking output | A ranked table with score, rank, and per-dimension subscores prints to screen and log and is written back to the database. | 1 |
 
@@ -247,7 +247,7 @@ The flow saves at least three plots as PNG to a `plots/` directory, committed to
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Dimension profile | A radar chart or small-multiples bar chart showing all three repos across every scored dimension. The plot also shows your final ranking, with repos ordered from healthiest to least healthy (for example, in the legend or panel order, labeled with rank and score). | 2 |
-| Trends over time | Monthly small multiples from `mart_repo_monthly` (one panel per metric, one line per repo) covering the full 36-month window. | 3 |
+| Trends over time | Monthly small multiples from `mart_repo_monthly` (one panel per metric, one line per repo) covering the full window. | 3 |
 | Relationship plot | A scatter or bubble chart encoding at least three variables (for example, x = time to first review, y = merge rate, size = active contributors, color = repo). | 2 |
 | Presentation | Titles, labeled axes with units, a consistent color per repo across all plots, and a one-paragraph interpretation of each plot in the README. | 2 |
 
@@ -295,7 +295,7 @@ As discussed in class I will NOT be grading on the following:
 - Speed/latency of your solution. Fast is great but unnecessary in this context.
 - Optimization. It should get the job done, even if there are more refined ways to structure it.
 - The final ranking itself. There is no correct order; grading is based on your metric definitions, weight justification, and sensitivity analysis.
-- Exact record counts. GitHub data shifts over time, so your counts will not match other students' exactly. Counts must only reconcile within your own pipeline (Task 4).
+- Exact record counts. The window grows with each run and GitHub data shifts over time, so your counts will not match other students' exactly. Counts must only reconcile within your own pipeline (Task 4).
 - Library and style choices beyond the required tools. `requests` vs. `httpx`, pandas vs. polars, matplotlib vs. plotly, sync vs. async, and formatting are your call, as long as Prefect, DuckDB, and `dbt` are used as specified.
 
 ## Reference
