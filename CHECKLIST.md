@@ -6,18 +6,14 @@ Due: Nov 02, 2026. See the [README](README.md) for full grading criteria.
 
 - [ ] Package set (A, B, or C): `____`
 - [ ] Repository URL: `https://github.com/________/________`
-- [ ] Extended items attempted (check all that apply):
-  - [ ] GraphQL ingestion
-  - [ ] Concurrent fetching
-  - [ ] Scheduled deployment
-  - [ ] API odometer. Total API requests for one full flow run: `______`
+- [ ] Set up your oral exam time slot 
 
 ## Repository setup
 
 - [ ] Created from the template (not forked) and set to **Private**
 - [ ] `nmagee`, `elaineliu05`, and `tcusick8` added as collaborators
 - [ ] Dependencies pinned in `requirements.txt`, `Pipfile`, or `pyproject.toml`
-- [ ] `.gitignore` excludes `data/`, `packages.duckdb`, log files, `target/`, `logs/`, and virtualenv folders
+- [ ] `.gitignore` excludes all appropriate files and directories.
 - [ ] No database files, logs, raw API dumps, caches, or binaries committed
 - [ ] No GitHub token anywhere in the repository or its history
 
@@ -66,7 +62,7 @@ Due: Nov 02, 2026. See the [README](README.md) for full grading criteria.
 - [ ] **GraphQL:** PR and review ingestion uses GraphQL with cursor pagination; README logs request counts and runtime for REST vs. GraphQL
 - [ ] **Concurrent fetching:** repos are fetched in parallel under a shared rate limiter; README says where this happens in the code
 - [ ] **Scheduled deployment:** monthly Prefect deployment (the 28th); `DEPLOYMENTS.md` shows the deployment command and the log of one manually triggered run
-- [ ] **API odometer:** total requests per flow run is logged, and the count is submitted in Canvas (above)
+- [ ] **API odometer:** total requests per flow run is logged, and your count is: ___________
 
 ## After submission
 
