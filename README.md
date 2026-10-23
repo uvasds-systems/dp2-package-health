@@ -108,7 +108,7 @@ You may add other endpoints if you use them in a metric.
 **Landing format.** Write one file per response page:
 
 ```
-data/raw/<run_id>/<owner>__<repo>/<endpoint>/page_0001.json
+data/raw/<owner>__<repo>/<endpoint>/page_0001.json
 ```
 
 Each file is a JSON object with the request metadata and the unmodified response body:
@@ -124,6 +124,21 @@ Each file is a JSON object with the request metadata and the unmodified response
 }
 ```
 
+**Resume or start fresh?** Task 2 creates an empty marker file, `data/raw/_LOADED`, once everything in `data/raw/` has been loaded into DuckDB:
+
+```python
+Path("data/raw/_LOADED").touch()
+```
+
+At the start of each run, Task 1 checks for that file:
+
+| What Task 1 finds | What it means | What Task 1 does |
+| --- | --- | --- |
+| No `_LOADED` file | The last run stopped before everything was loaded | **Resume:** keep the files, skip pages already on disk, fetch the rest |
+| `_LOADED` file present | Everything on disk is already safe in DuckDB | **Start fresh:** delete `data/raw/`, then fetch only records updated since the `_load_state` watermark (see Task 2) |
+
+On the very first run there is no `data/raw/` and no `_load_state`, so Task 1 fetches the full window.
+
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Required endpoints | Every endpoint in the table above is fetched for all three repos. | 3 |
@@ -132,11 +147,11 @@ Each file is a JSON object with the request metadata and the unmodified response
 | Primary rate limit | Reads `X-RateLimit-Remaining` and `X-RateLimit-Reset` on every response and sleeps until the reset time before the budget reaches zero. The 5,000 requests/hour limit cannot be raised. | 3 |
 | Other HTTP errors | Handles 403/429 (secondary rate limits; honor `Retry-After`) and 5xx errors using Prefect `retries` and `retry_delay_seconds` on the appropriate task(s). | 1 |
 | Landing files | Every response page is written in the format above, with exactly one file per page. | 1 |
-| Resumability | If a run is interrupted, the next run resumes the unfinished `<run_id>` folder and skips pages already on disk instead of starting over. Show this in your README with log excerpts from an interrupted run and its resumed run. | 2 |
+| Resumability | If a run is interrupted, the next run sees no `_LOADED` file, keeps what is in `data/raw/`, and skips pages already on disk instead of starting over. Show this in your README with log excerpts from an interrupted run and its resumed run. Tip: interrupt your first full run partway through (Ctrl-C) and restart it; resuming costs no extra quota. Consider what happens if a crash lands while a page file is half-written: your resume logic should be able to recover from that without re-fetching what it already has (for example, by writing to a temp file and renaming it when complete, or by re-fetching only pages that fail to parse). | 2 |
 
 ## Task 2: Load to DuckDB — 9 points
 
-Read the landed JSON files from the current run folder and load them into raw tables in `packages.duckdb`. `dbt` builds everything downstream from these tables in Task 3.
+Read the landed JSON files in `data/raw/` and load them into raw tables in `packages.duckdb`. `dbt` builds everything downstream from these tables in Task 3.
 
 **Raw table design.** Create one table per endpoint (`raw_commits`, `raw_pull_requests`, `raw_pr_reviews`, and so on). Each row is **one record** (one commit, one PR, one review), not one page. Each table has a few typed key columns and the full record as JSON:
 
@@ -149,16 +164,16 @@ Read the landed JSON files from the current run folder and load them into raw ta
 | `source_file` | VARCHAR | Path of the landing file the row came from |
 | `payload` | JSON | The complete record as returned by GitHub |
 
-Natural keys: commits → `sha`; PRs and PR detail → `number`; reviews and releases → `id`. Primary key is `(repo, id)`.
+Natural keys: commits → `sha`; PRs and PR detail → `number`; reviews and releases → `id`; repository and community profile → `repo` (one row per repo, so `id` is just `owner/name`). Primary key is `(repo, id)`.
 
 Leave the remaining fields inside `payload`. Your `dbt` staging models (Task 3) extract the fields you need, so if you later find you need another field you only change a model, not re-fetch from the API.
 
-**Load state.** Keep a `_load_state` table with one row per repo and endpoint, recording the newest `updated_at` loaded and when the load finished. Write it only after a run folder loads completely, and then write a `_LOADED` marker file into that run folder. Task 1 reads `_load_state` on the next run to set `since` and to decide where to stop paginating; it treats any run folder without `_LOADED` as unfinished and resumes it. Think of this table as tracking every successful action in this task, so that any hiccup does not require a full restart.
+**Load state.** Keep a `_load_state` table with one row per repo and endpoint, recording the newest `updated_at` loaded and when the load finished. Update it only after every file in `data/raw/` has loaded, and then create the `_LOADED` marker (see *Resume or start fresh?* in Task 1). On the next run, Task 1 reads `_load_state` to set `since` and to decide where to stop paginating. Think of this table as tracking every successful action in this task, so that any hiccup does not require a full restart.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Raw tables | One table per endpoint, one row per record, with the columns above. Every `dbt` model can be rebuilt from these tables without calling the API. | 3 |
-| Idempotent loads | Loads upsert on `(repo, id)` (e.g. `INSERT OR REPLACE` or `MERGE`), never blind inserts. Running Task 2 twice on the same run folder produces identical row counts; show both counts in the log. | 3 |
+| Idempotent loads | Loads upsert on `(repo, id)` (e.g. `INSERT OR REPLACE` or `MERGE`), never blind inserts. Running Task 2 twice on the same files produces identical row counts; show both counts in the log. | 3 |
 | Incremental loads | A second flow run requests only records updated since the `_load_state` watermark (detail and review calls only for new or updated PRs), and Task 2 upserts them into the existing tables. Log the request count for a full run and an incremental run. | 3 |
 
 ## Task 3: `dbt` transformations and tests — 12 points
@@ -194,7 +209,7 @@ This task reads the `dbt` marts, confirms that nothing was lost between stages, 
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Completeness checks | For each repo and endpoint, the number of distinct records matches from stage to stage (landed JSON → raw tables → staging models), counting duplicates only once. Every repo has commits in every month of the window. Any mismatch fails the task. | 3 |
+| Completeness checks | For each repo and endpoint, every distinct `(repo, id)` record in `data/raw/` appears in the raw table, and the raw table's row count matches its staging model. Every repo has commits in every month of the window. Any mismatch fails the task. | 3 |
 | Outlier detection | Scan time to merge, PR size, and weekly commits for values far outside the typical range (for example, a PR open for years or a PR that changes 50,000 lines). State the cutoff you used, list the records it flags, and say whether you keep, cap, or drop them, and why. | 3 |
 | Descriptive statistics | Per repo: median and 90th percentile time to first review and time to merge; commits per week; releases per year; active contributors per quarter. Printed to screen and log. | 3 |
 
@@ -242,7 +257,7 @@ These items separate strong submissions from complete ones.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| GraphQL ingestion | Rewrite PR and review ingestion against the [**GitHub GraphQL API**](https://docs.github.com/en/graphql) with cursor pagination, tracking the 5,000-point hourly budget from the `rateLimit` field. Log request counts and runtime for REST vs. GraphQL. | 3 |
+| GraphQL ingestion | Rewrite PR and review ingestion against the [**GitHub GraphQL API**](https://docs.github.com/en/graphql) with cursor pagination, tracking the 5,000-point hourly budget from the `rateLimit` field. Log request counts and runtime for REST vs. GraphQL. One GraphQL query can return 100 PRs with their line counts and first review, replacing about 200 REST calls. Done early, this cuts a full run from hours to minutes. | 3 |
 | Concurrent fetching | Use Prefect task mapping or async requests to fetch repos in parallel while a shared limiter keeps total usage under the quota. | 2 |
 | Scheduled deployment | A Prefect deployment with a weekly schedule runs the incremental flow; the `DEPLOYMENTS.md` file shows the deployment command and one scheduled run's log. [Read more](DEPLOYMENTS.md). | 2 |
 | API Odometer | Implement an overall tracking mechanism that tracks the total number of API requests per flow run. | 1 |
