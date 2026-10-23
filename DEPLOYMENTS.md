@@ -32,14 +32,14 @@ See the [reference example](https://gist.github.com/nmagee/177f916afefbc7ae5bcfa
 
 ```
 if __name__ == "__main__":
-    # runs midnight Eastern on the 20th of every month
+    # runs midnight Eastern on the 28th of every month
     <flow_function_name>.from_source(
         source=GIT_URL,
         entrypoint="main.py:<flow_function_name>",
     ).deploy(
         name="package-health",
         work_pool_name=WORK_POOL,
-        schedule=Cron("0 0 20 * *", timezone="America/New_York"),
+        schedule=Cron("0 0 28 * *", timezone="America/New_York"),
         job_variables={
             "cpu_request": "2",
             "cpu_limit": "2",
@@ -104,6 +104,8 @@ To publish your deployment once written (and the entire code including your GIT_
 You should see your deployment listed in https://sds-prefect.pods.uvarc.io/v2/deployments
 
 Select it to see details and any previous runs. Use the blue "Run" button in the upper-right to trigger a run, which you can then follow like any other run.
+
+**For this project, trigger your deployment manually once.** The first scheduled run may not fall before the due date, so a manual run from the "Run" button is what you submit. Copy its log into `DEPLOYMENTS.md` along with your deployment command.
 
 See the [NYC-Taxi-Monthly](https://sds-prefect.pods.uvarc.io/v2/deployments/deployment/987975de-1d75-48d3-810e-251d9e077b16?tab=Runs) sample deployment and try running it for yourself.
 
