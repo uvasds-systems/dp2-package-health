@@ -68,6 +68,7 @@ Instead of passing `GIT_URL` as a plain string, wrap it in a `GitRepository` obj
 from prefect.blocks.system import Secret
 from prefect.runner.storage import GitRepository
 
+# be sure to use your PAT block below
 if __name__ == "__main__":
     <flow_function_name>.from_source(
         source=GitRepository(
@@ -105,3 +106,7 @@ You should see your deployment listed in https://sds-prefect.pods.uvarc.io/v2/de
 Select it to see details and any previous runs. Use the blue "Run" button in the upper-right to trigger a run, which you can then follow like any other run.
 
 See the [NYC-Taxi-Monthly](https://sds-prefect.pods.uvarc.io/v2/deployments/deployment/987975de-1d75-48d3-810e-251d9e077b16?tab=Runs) sample deployment and try running it for yourself.
+
+The savvy BSDS student will recognize that some outputs such as plots will not be available since they are built into the remote environment executing the code. This is okay ;^)
+
+(In production the plots would be copied off to remote storage like S3, etc.)

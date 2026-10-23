@@ -2,9 +2,11 @@
 
 Released: Oct 23, 2026
 
+Due: Oct 30, 2026
+
 ## Overview
 
-In this project students will build one Prefect flow that pulls GitHub activity for five data science packages and ranks them from healthiest to least healthy development community. The project is worth 100 points: 82 core, 8 extended, and 10 for an oral interview.
+In this project students will build one Prefect flow that pulls GitHub activity for three data science packages and ranks them from healthiest to least healthy development community. The project is worth 100 points: 82 core, 8 extended, and 10 for an oral interview.
 
 The flow must run end to end from a single entry point and contain six tasks: (1) extract from the GitHub API to JSON files, (2) load into DuckDB, (3) transform and test with `dbt`, (4) test and validate, (5) model and rank, (6) plot. Each task is graded on its own, and each is designed to require real problem solving rather than a single library call.
 
@@ -27,13 +29,13 @@ flowchart LR
 
 Students will choose one of three preassigned sets of packages. Fixed sets equalize the API workload and guarantee a spread of community sizes so the ranking has something to find.
 
-Each set mixes two very large projects, two mid-size projects, and one smaller or maintainer-concentrated project.
+Each set mixes one large project with two smaller ones. The sets are balanced at roughly 7,000 PRs created and 5,500 PRs merged each across the analysis window.
 
-| Set | Large (heavy pagination) | Mid-size | Smaller / concentrated |
-| --- | --- | --- | --- |
-| A | `numpy/numpy`, `scikit-learn/scikit-learn` | `dask/dask`, `mwaskom/seaborn` | `vega/altair` |
-| B | `pandas-dev/pandas`, `matplotlib/matplotlib` | `statsmodels/statsmodels`, `dmlc/xgboost` | `networkx/networkx` |
-| C | `scipy/scipy`, `pola-rs/polars` | `plotly/plotly.py`, `lightgbm-org/LightGBM` | `pydata/xarray` |
+| Set | Large (heavy pagination) | Smaller |
+| --- | --- | --- |
+| A | `numpy/numpy` | `networkx/networkx`, `statsmodels/statsmodels` |
+| B | `scikit-learn/scikit-learn` | `dask/dask`, `plotly/plotly.py` |
+| C | `matplotlib/matplotlib` | `pydata/xarray`, `lightgbm-org/LightGBM` |
 
 Indicate your selection A, B, or C in the Canvas quiz form.
 
@@ -55,13 +57,13 @@ Do not fork this repository. Create your own copy from the template:
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Submission | All code, README, and plots are committed by the deadline in a **private** repository created from this template, with instructional staff added as collaborators (see [Create your repository](#create-your-repository)). | 1 |
-| Single Prefect flow | One `@flow` orchestrates exactly six (6) `@task` functions in order; running the flow executes the whole pipeline, including `dbt build`. Students may include additional pages or classes that are incorporated into the flow. | 3 |
+| Single Prefect flow | One `@flow` orchestrates the six (6) core tasks in order; running the flow executes the whole pipeline, including `dbt build`. The six tasks are the backbone of the flow: helper tasks (e.g. a per-request fetch with its own retries, or a task mapped over repos) and subflows are allowed to carry out the work of any of the six. Helper functions and classes may live in additional Python modules imported by the flow. | 3 |
 | Execution | The flow runs to completion from a clean clone with only a GH token; experiences no unhandled exceptions. | 2 |
 | Secrets | The GitHub PAT is read from an environment variable or Prefect Secret block; no token appears anywhere in the repository or its history. | 1 |
 | Retries and error handling | Tasks use Prefect retries with backoff where failure is transient; HTTP and parsing errors are caught and handled with context. | 2 |
 | Logging | Each task logs through the Prefect logger AND to its own log file in the project directory (dbt's own log should also be saved). | 1 |
 | Code quality | Functions should be well-formed with `return`, appropriate flow control, and not unnecessarily verbose; files organized into folders (flow, dbt, plots). | 1 |
-| Reproducibility | Dependencies pinned in `requirements.txt`, `Pipfile`, or `pyproject.yaml`); README explains setup, run command, and expected runtime. | 1 |
+| Reproducibility | Dependencies pinned in `requirements.txt`, `Pipfile`, or `pyproject.toml`; README explains setup, run command, and expected runtime. | 1 |
 | No cruft | The repository contains no database files, log files, raw API dumps, or caches. It contains no binaries, `venv` folder or virtualenv artifacts apart from dependency manifests (above) | 1 |
 
 ## How Tasks 1 and 2 fit together
@@ -77,13 +79,13 @@ GitHub API ──Task 1: Extract──▶ data/raw/*.json ──Task 2: Load─�
 
 Because the raw responses stay on disk, you can fix a bug in Task 2 or any `dbt` model and rerun it without spending API quota. Add `data/` to `.gitignore`; landed data files must never be committed (see *No cruft* above).
 
-> **A note on design**: Any task can be run in parallel using Prefect's `.map` feature. And, since you are working on 5 repositories at once, your code can theoretically work on more than one repo at a time, fetching multiple sources of data at the same time for each.
+> **A note on design**: Any task can be run in parallel using Prefect's `.map` feature. And, since you are working on 3 repositories at once, your code can theoretically work on more than one repo at a time, fetching multiple sources of data at the same time for each.
 
 ## Task 1: Extract from GitHub — 16 points
 
 > **Build your flow** in the `main.py` module. All flow and logic should be there, unless you incorporate other modules via import.
 
-Pull every required endpoint for all five repositories, across every page, and write each response page to disk as a JSON file. Restrict to the analysis window wherever the endpoint supports it (`since`/`until` for commits, `since` for issues and comments). For endpoints without date filters, sort by `updated` descending and stop paginating once you pass the window start.
+Pull every required endpoint for all three repositories, across every page, and write each response page to disk as a JSON file. Restrict to the analysis window wherever the endpoint supports it (`since`/`until` for commits). Pull requests have no date filter: sort by `updated` descending and stop paginating once you pass the window start. Releases are small enough to fetch in full.
 
 Example URL using `since` and `until`:
 
@@ -96,13 +98,10 @@ Example URL using `since` and `until`:
 | Repository | `GET /repos/{r}` | One call. Repository metadata (description, creation date, default branch). |
 | Community profile | `GET /repos/{r}/community/profile` | One call. CONTRIBUTING, CODE_OF_CONDUCT, etc. |
 | Commits | `GET /repos/{r}/commits?since=…&until=…` | |
-| Issues | `GET /repos/{r}/issues?state=all&since=…` | Also returns PRs. Separate them using the `pull_request` key. |
-| Issue comments | `GET /repos/{r}/issues/comments?since=…` | Repo-wide list, used to compute first response time on issues. |
 | Pull requests | `GET /repos/{r}/pulls?state=all&sort=updated&direction=desc` | |
 | PR detail | `GET /repos/{r}/pulls/{number}` | One call per merged PR in the window (lines changed). |
-| PR reviews | `GET /repos/{r}/pulls/{number}/reviews` | One call per merged PR in the window (first review time). |
+| PR reviews | `GET /repos/{r}/pulls/{number}/reviews` | One call per PR created in the window, merged or not (first review time). |
 | Releases | `GET /repos/{r}/releases` | |
-| Contributors | `GET /repos/{r}/contributors` | |
 
 You may add other endpoints if you use them in a metric.
 
@@ -117,8 +116,8 @@ Each file is a JSON object with the request metadata and the unmodified response
 ```json
 {
   "repo": "numpy/numpy",
-  "endpoint": "issues",
-  "url": "https://api.github.com/repos/numpy/numpy/issues?state=all&per_page=100&page=1",
+  "endpoint": "pulls",
+  "url": "https://api.github.com/repos/numpy/numpy/pulls?state=all&sort=updated&direction=desc&per_page=100&page=1",
   "page": 1,
   "fetched_at": "2026-11-02T14:03:11Z",
   "data": [ ... ]
@@ -127,8 +126,8 @@ Each file is a JSON object with the request metadata and the unmodified response
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Required endpoints | Every endpoint in the table above is fetched for all five repos. Issues and PRs are separated. | 3 |
-| Detail calls | PR detail and reviews are fetched for every merged PR in the window. These calls multiply your request volume and are what push the large repos past the hourly limit. | 3 |
+| Required endpoints | Every endpoint in the table above is fetched for all three repos. | 3 |
+| Detail calls | PR detail is fetched for every merged PR in the window, and reviews for every PR created in the window. These calls multiply your request volume and are what push the large repos past the hourly limit. | 3 |
 | Pagination | Follows the `Link` header (`rel="next"`) with `per_page=100` until no next page remains. Record counts are logged per endpoint per repo. | 3 |
 | Primary rate limit | Reads `X-RateLimit-Remaining` and `X-RateLimit-Reset` on every response and sleeps until the reset time before the budget reaches zero. The 5,000 requests/hour limit cannot be raised. | 3 |
 | Other HTTP errors | Handles 403/429 (secondary rate limits; honor `Retry-After`) and 5xx errors using Prefect `retries` and `retry_delay_seconds` on the appropriate task(s). | 1 |
@@ -139,7 +138,7 @@ Each file is a JSON object with the request metadata and the unmodified response
 
 Read the landed JSON files from the current run folder and load them into raw tables in `packages.duckdb`. `dbt` builds everything downstream from these tables in Task 3.
 
-**Raw table design.** Create one table per endpoint (`raw_commits`, `raw_issues`, `raw_pull_requests`, and so on). Each row is **one record** (one commit, one issue, one review), not one page. Each table has a few typed key columns and the full record as JSON:
+**Raw table design.** Create one table per endpoint (`raw_commits`, `raw_pull_requests`, `raw_pr_reviews`, and so on). Each row is **one record** (one commit, one PR, one review), not one page. Each table has a few typed key columns and the full record as JSON:
 
 | Column | Type | Description |
 | --- | --- | --- |
@@ -150,7 +149,7 @@ Read the landed JSON files from the current run folder and load them into raw ta
 | `source_file` | VARCHAR | Path of the landing file the row came from |
 | `payload` | JSON | The complete record as returned by GitHub |
 
-Natural keys: commits → `sha`; issues and PRs → `number`; comments, reviews, and releases → `id`; contributors → `login`. Primary key is `(repo, id)`.
+Natural keys: commits → `sha`; PRs and PR detail → `number`; reviews and releases → `id`. Primary key is `(repo, id)`.
 
 Leave the remaining fields inside `payload`. Your `dbt` staging models (Task 3) extract the fields you need, so if you later find you need another field you only change a model, not re-fetch from the API.
 
@@ -160,7 +159,7 @@ Leave the remaining fields inside `payload`. Your `dbt` staging models (Task 3) 
 | --- | --- | --- |
 | Raw tables | One table per endpoint, one row per record, with the columns above. Every `dbt` model can be rebuilt from these tables without calling the API. | 3 |
 | Idempotent loads | Loads upsert on `(repo, id)` (e.g. `INSERT OR REPLACE` or `MERGE`), never blind inserts. Running Task 2 twice on the same run folder produces identical row counts; show both counts in the log. | 3 |
-| Incremental loads | A second flow run requests only records updated since the `_load_state` watermark (detail calls only for new or updated merged PRs), and Task 2 upserts them into the existing tables. Log the request count for a full run and an incremental run. | 3 |
+| Incremental loads | A second flow run requests only records updated since the `_load_state` watermark (detail and review calls only for new or updated PRs), and Task 2 upserts them into the existing tables. Log the request count for a full run and an incremental run. | 3 |
 
 ## Task 3: `dbt` transformations and tests — 12 points
 
@@ -172,22 +171,21 @@ Suggested models (students may add more):
 
 | Model | Grain | Precalculated columns |
 | --- | --- | --- |
-| `stg_*` | One per raw endpoint | Typed columns, UTC timestamps, deduplicated on natural key, `is_bot` flag |
-| `fct_issues` | One row per issue | Hours to first response, hours to close, open at window end, stale (no activity in 180+ days) |
-| `fct_pull_requests` | One row per PR | Hours to first review, hours to merge, merged flag, lines changed, first-time contributor flag |
+| `stg_*` | One per raw endpoint | Typed columns, UTC timestamps, deduplicated on natural key, `is_bot` flag (e.g. `user.type = 'Bot'` or a login ending in `[bot]`) |
+| `fct_pull_requests` | One row per PR | Hours to first review, hours to merge, hours to close, merged / closed-unmerged / open flags, open at window end, stale (no activity in 180+ days), lines changed |
 | `fct_releases` | One row per release | Days since previous release, major/minor/patch from tag, prerelease flag |
-| `dim_contributors` | One row per author per repo | First and last contribution date, active quarters, retained 6 months after first contribution |
-| `mart_repo_monthly` | Repo × month | Issues opened and closed, close ratio, median response and merge hours, commits, active contributors |
+| `dim_contributors` | One row per PR author (`user.login`) per repo | First and last PR date, PRs opened and merged, active quarters |
+| `mart_repo_monthly` | Repo × month | PRs opened, merged, and closed unmerged; merge ratio; median first-review and merge hours; commits; active contributors |
 | `mart_health_inputs` | One row per repo | Every metric Task 5 scores, already size-normalized |
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Staging models | One staging model per raw endpoint with typed columns, deduplication, and bot flagging; the bot rule is documented. | 2 |
-| Fact and dimension marts | `fct_issues`, `fct_pull_requests`, `fct_releases`, and `dim_contributors` built with the precalculated durations and flags above. | 3 |
+| Fact and dimension marts | `fct_pull_requests`, `fct_releases`, and `dim_contributors` built with the precalculated durations and flags above. | 3 |
 | Aggregate marts | `mart_repo_monthly` and `mart_health_inputs` feed Tasks 4–6 directly; no downstream task recomputes durations in Python. | 2 |
-| Open items | Issues and PRs still open at window end are kept and marked open, never dropped or given a fake close date. The README explains how medians treat them. | 1 |
+| Open items | PRs still open at window end are kept and marked open, never dropped or given a fake close date. The README explains how medians treat them. | 1 |
 | Generic tests | `unique` and `not_null` on every primary key, `relationships` from facts to repos and contributors, `accepted_values` on state columns. | 1 |
-| Singular tests | Custom SQL tests assert no issue closed before it opened, no PR merged before it was created, and every timestamp falls inside the window. Results print to screen and log. | 2 |
+| Singular tests | Custom SQL tests assert no PR closed or merged before it was created, no review submitted before its PR was created, and every timestamp falls inside the window. Results print to screen and log. | 2 |
 | Documentation | `schema.yml` describes every mart and column; raw tables are declared as dbt sources. | 1 |
 
 ## Task 4: Testing and validation — 9 points
@@ -197,24 +195,24 @@ This task reads the `dbt` marts, confirms that nothing was lost between stages, 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Completeness checks | For each repo and endpoint, the number of distinct records matches from stage to stage (landed JSON → raw tables → staging models), counting duplicates only once. Every repo has commits in every month of the window. Any mismatch fails the task. | 3 |
-| Outlier detection | Scan time to close, PR size, and weekly commits for values far outside the typical range (for example, an issue open for years or a PR that changes 50,000 lines). State the cutoff you used, list the records it flags, and say whether you keep, cap, or drop them, and why. | 3 |
-| Descriptive statistics | Per repo: median and 90th percentile time to first response, time to close, and time to merge; commits per week; releases per year; active contributors per quarter. Printed to screen and log. | 3 |
+| Outlier detection | Scan time to merge, PR size, and weekly commits for values far outside the typical range (for example, a PR open for years or a PR that changes 50,000 lines). State the cutoff you used, list the records it flags, and say whether you keep, cap, or drop them, and why. | 3 |
+| Descriptive statistics | Per repo: median and 90th percentile time to first review and time to merge; commits per week; releases per year; active contributors per quarter. Printed to screen and log. | 3 |
 
 Medians and percentiles are required because these durations are heavily right-skewed; a mean alone earns no credit.
 
 ## Task 5: Health modeling and ranking — 14 points
 
-Students build a composite health score from at least six metrics spanning at least four dimensions, then rank the five repos and show the ranking holds up.
+Students build a composite health score from at least six metrics spanning at least four dimensions, then rank the three repos and show the ranking holds up.
 
 | Dimension | Example metrics |
 | --- | --- |
 | Activity | Commits per week; trend slope over the window |
-| Responsiveness | Median time to first response on issues; median time to first PR review |
-| Throughput | Issues closed ÷ issues opened per month; PR merge rate; median time to merge |
-| Backlog | Open-issue growth rate; share of open issues with no activity in 180+ days |
+| Responsiveness | Median time to first PR review; share of PRs reviewed within 7 days |
+| Throughput | PRs merged ÷ PRs opened per month; merge rate (merged ÷ closed); median time to merge |
+| Backlog | Open-PR growth rate; share of open PRs with no activity in 180+ days |
 | Release cadence | Releases per year; regularity (coefficient of variation of days between releases) |
-| Contributor base | Active contributors per quarter; bus factor (fewest people making 50% of commits); new-contributor retention after 6 months |
-| Community health | Community profile files (CONTRIBUTING, CODE\_OF\_CONDUCT); `good first issue` usage; first-time contributor PRs merged |
+| Contributor base | Active PR authors per quarter; bus factor (fewest authors accounting for 50% of merged PRs) |
+| Community health | Community profile files (CONTRIBUTING, CODE\_OF\_CONDUCT); share of merged PRs with an approving review |
 
 Stars and forks measure popularity, not health, and do not count toward the six metrics.
 
@@ -233,9 +231,9 @@ The flow saves at least three plots as PNG to a `plots/` directory, committed to
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
-| Dimension profile | A radar chart or small-multiples bar chart showing all five repos across every scored dimension. The plot also shows your final ranking, with repos ordered from healthiest to least healthy (for example, in the legend or panel order, labeled with rank and score). | 2 |
+| Dimension profile | A radar chart or small-multiples bar chart showing all three repos across every scored dimension. The plot also shows your final ranking, with repos ordered from healthiest to least healthy (for example, in the legend or panel order, labeled with rank and score). | 2 |
 | Trends over time | Monthly small multiples from `mart_repo_monthly` (one panel per metric, one line per repo) covering the full 36-month window. | 3 |
-| Relationship plot | A scatter or bubble chart encoding at least three variables (for example, x = time to first response, y = close ratio, size = active contributors, color = repo). | 2 |
+| Relationship plot | A scatter or bubble chart encoding at least three variables (for example, x = time to first review, y = merge rate, size = active contributors, color = repo). | 2 |
 | Presentation | Titles, labeled axes with units, a consistent color per repo across all plots, and a one-paragraph interpretation of each plot in the README. | 2 |
 
 ## Extended process — 8 points
@@ -289,10 +287,9 @@ As discussed in class I will NOT be grading on the following:
 
 [**GitHub API Documentation**](https://docs.github.com/en/rest?apiVersion=2026-03-10)
 - [Commits](https://docs.github.com/en/rest/commits/commits?apiVersion=2026-03-10)
-- [Issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2026-03-10)
-- [Pull Requests (a special type of issue)](https://docs.github.com/en/rest/issues/issues?apiVersion=2026-03-10)
+- [Pull Requests](https://docs.github.com/en/rest/pulls/pulls?apiVersion=2026-03-10)
+- [PR Reviews](https://docs.github.com/en/rest/pulls/reviews?apiVersion=2026-03-10) | [Sample Code](https://github.com/uvasds-systems/ds3022/blob/main/04_apis/09_github_pr_vals.py)
 - [Releases](https://docs.github.com/en/rest/releases/releases?apiVersion=2026-03-10)
-- [Contributors](https://docs.github.com/en/rest/repos/repos?apiVersion=2026-03-10#list-repository-contributors)
 
 Other:
 - [GitHub Pagination](https://docs.github.com/en/rest/using-the-rest-api/using-pagination-in-the-rest-api) | [Sample Code](https://github.com/uvasds-systems/ds3022/blob/main/04_apis/05_pagination.py)
