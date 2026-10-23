@@ -25,7 +25,7 @@ Due: Nov 02, 2026. See the [README](README.md) for full grading criteria.
 - [ ] **Task 1 · Extract:** commits, pull requests, PR reviews, and releases for all three repos, written to `data/raw/` one file per page
 - [ ] **Task 2 · Load:** one `raw_*` table per endpoint, upserted on `(repo, id)`, plus `_load_state` and the `_LOADED` marker
 - [ ] **Task 3 · dbt:** `dbt build` runs inside the flow and fails it on any model or test failure
-- [ ] **Task 4 · Validation:** completeness checks, outlier detection, and descriptive statistics printed and logged
+- [ ] **Task 4 · Validation (Python, no dbt):** completeness checks, outlier detection, and descriptive statistics printed and logged
 - [ ] **Task 5 · Model:** ranked table with score, rank, and per-dimension subscores printed, logged, and written to the database
 - [ ] **Task 6 · Plot:** at least three PNGs saved to `plots/`
 

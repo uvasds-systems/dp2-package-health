@@ -8,7 +8,7 @@ Released: Oct 23, 2026 | Due: Nov 02, 2026
 
 In this project students will build one Prefect flow that pulls GitHub activity for three data science packages and ranks them from healthiest to least healthy development community. The project is worth **100 points**: **82** core, **8** extended, and **10** for an oral interview.
 
-The flow must run end to end from a single entry point and contain six tasks: (1) extract from the GitHub API to JSON files, (2) load into DuckDB, (3) transform and test with `dbt`, (4) test and validate, (5) model and rank, (6) plot. Each task is graded on its own, and each is designed to require real problem solving rather than a single library call.
+The flow must run end to end from a single entry point and contain six tasks: (1) extract from the GitHub API to JSON files, (2) load into DuckDB, (3) build and test staging, fact, and mart models with `dbt`, (4) validate the results in Python (no `dbt`), (5) model and rank, (6) plot. Task 3 is the only task that runs `dbt`. Each task is graded on its own, and each is designed to require real problem solving rather than a single library call.
 
 Analysis window: **2024-01-01 through the time of each run.** The start date is fixed and shared by all projects; the end is open, so the window grows with every run (34 months as of October 2026). There is no end date to configure: anything GitHub returns already falls before the run.
 
@@ -17,7 +17,7 @@ flowchart LR
     api[(GitHub API)] --> t1
     subgraph flow [Prefect flow]
         direction LR
-        t1["<b>1 · Extract</b><br/>4 endpoints × 3 repos<br/>data/raw/"] --> t2["<b>2 · Load</b><br/>4 raw_* tables<br/>packages.duckdb"] --> t3["<b>3 · dbt build</b><br/>4 stg, 2 fct, 2 mart<br/>+ tests"] --> t4["<b>4 · Testing &<br/>validation</b><br/>checks, outliers,<br/>statistics"] --> t5["<b>5 · Model</b><br/>health scores<br/>+ ranking"] --> t6["<b>6 · Plot</b><br/>PNGs<br/>plots/"]
+        t1["<b>1 · Extract</b><br/>4 endpoints × 3 repos<br/>data/raw/"] --> t2["<b>2 · Load</b><br/>4 raw_* tables<br/>packages.duckdb"] --> t3["<b>3 · dbt build</b><br/>4 stg, 2 fct, 2 mart<br/>+ tests"] --> t4["<b>4 · Validation</b><br/>(Python)<br/>checks, outliers,<br/>statistics"] --> t5["<b>5 · Model</b><br/>health scores<br/>+ ranking"] --> t6["<b>6 · Plot</b><br/>PNGs<br/>plots/"]
     end
     classDef box fill:#ffffff,stroke:#6b7280,color:#111827
     class api,t1,t2,t3,t4,t5,t6 box
@@ -57,7 +57,7 @@ Do not fork this repository. Create your own copy from the template:
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Submission | All code, README, and plots are committed by the deadline in a **private** repository created from this template, with instructional staff added as collaborators (see [Create your repository](#create-your-repository)). | 1 |
-| Single Prefect flow | One `@flow` orchestrates the six (6) core tasks in order; running the flow executes the whole pipeline, including `dbt build`. The six tasks are the backbone of the flow: helper tasks (e.g. a per-request fetch with its own retries, or a task mapped over repos) and subflows are allowed to carry out the work of any of the six. Helper functions and classes may live in additional Python modules imported by the flow. | 3 |
+| Single Prefect flow | One `@flow` orchestrates the six (6) core tasks in order; running the flow executes the whole pipeline, including `dbt build` (Task 3). The six tasks are the backbone of the flow: helper tasks (e.g. a per-request fetch with its own retries, or a task mapped over repos) and subflows are allowed to carry out the work of any of the six. Helper functions and classes may live in additional Python modules imported by the flow. | 3 |
 | Execution | The flow runs to completion from a clean clone with only a GH token; experiences no unhandled exceptions. | 2 |
 | Secrets | The GitHub PAT is read from an environment variable or Prefect Secret block; no token appears anywhere in the repository or its history. | 1 |
 | Retries and error handling | Tasks use Prefect retries with backoff where failure is transient; HTTP and parsing errors are caught and handled with context. | 2 |
@@ -175,7 +175,7 @@ Leave the remaining fields inside `payload`. Your `dbt` staging models (Task 3) 
 
 ## Task 3: `dbt` transformations and tests — 12 points
 
-A `dbt` project in the repository turns raw JSON into tested staging models and marts with precalculated measures. The Prefect flow runs `dbt build` and fails if any model or test fails. Little cleaning is needed; the work is in the derived measures.
+A `dbt` project in the repository turns raw JSON into tested staging models and marts with precalculated measures. The Prefect flow runs `dbt build` and fails if any model or test fails. This is the only place in the flow where `dbt` runs. Little cleaning is needed; the work is in the derived measures.
 
 A `dbt` Reference is available [here](DBT-REFERENCE.md).
 
@@ -201,13 +201,15 @@ Suggested models (students may add more). Field names refer to the GitHub JSON i
 
 ## Task 4: Testing and validation — 9 points
 
-This task reads the `dbt` marts, confirms that nothing was lost between stages, and summarizes the data before modeling. It fails the flow if a check fails.
+**Task 4 is written in Python and does not run `dbt`.** It runs after Task 3 and uses what Task 3 built as its input. In a Python `@task`, connect to `packages.duckdb` and query the raw tables, staging models, and marts directly with SQL (and pandas or polars if you like), and read the landed JSON files in `data/raw/`. The task confirms that nothing was lost between stages and summarizes the data before modeling. If any check fails, raise an exception so the flow fails.
+
+Task 4 does not repeat Task 3's work. Task 3's `dbt` tests check that each model is internally correct (unique keys, valid states, dates in order). Task 4 checks the pipeline end to end, from landed files to raw tables to staging models, and describes the data.
 
 | Criterion | Full credit requires | Pts |
 | --- | --- | --- |
 | Completeness checks | For each repo and endpoint, every distinct `(repo, id)` record in `data/raw/` appears in the raw table, and the raw table's row count matches its staging model. Every repo has commits in every complete month of the window (the current, partial month is exempt). Any mismatch fails the task. | 3 |
 | Outlier detection | Scan time to merge and weekly commits for values far outside the typical range (for example, a PR open for years or a week with a burst of automated commits). State the cutoff you used, list the records it flags, and say whether you keep, cap, or drop them, and why. | 3 |
-| Descriptive statistics | Per repo: median and 90th percentile time to first review and time to merge; commits per week; releases per year. Printed to screen and log. | 3 |
+| Descriptive statistics | Per repo: median and 90th percentile time to first review and time to merge; commits per week; releases per year. Read durations from the marts (do not recompute them). Printed to screen and log. | 3 |
 
 Medians and percentiles are required because these durations are heavily right-skewed; a mean alone earns no credit.
 
