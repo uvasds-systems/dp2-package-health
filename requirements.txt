@@ -1,4 +1,4 @@
 dbt-core
 dbt-duckdb
-prefect
+prefect==3.9.0
 httpx
